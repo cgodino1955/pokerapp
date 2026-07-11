@@ -275,9 +275,10 @@
   }
   .mini-card.red{ color:var(--red); }
   .hand-meta{ font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--cream-dim); }
-  .hand-net{ font-family:'JetBrains Mono', monospace; font-weight:700; font-size:15px; }
+  .hand-net{ font-family:'JetBrains Mono', monospace; font-weight:700; font-size:15px; text-transform:uppercase; }
   .hand-net.pos{ color:var(--win); }
   .hand-net.neg{ color:var(--loss); }
+  .hand-net.chop{ color:var(--gold); }
   .hand-detail{
     margin-top:10px; padding-top:10px; border-top:1px solid var(--line);
     font-size:13px; line-height:1.6; color:var(--cream-dim);
@@ -347,7 +348,7 @@
     <div class="brand">The Ledger <span class="suits">♠ ♥ ♦ ♣</span></div>
     <div class="session-line">
       <span id="hand-count">0 hands logged</span>
-      <span id="session-net" class="net">$0</span>
+      <span id="session-net" class="net">—</span>
     </div>
   </header>
 
@@ -463,8 +464,6 @@
         <div class="chip-row" id="result-chips"></div>
         <label class="field-label">Reached Showdown?</label>
         <div class="chip-row" id="showdown-chips"></div>
-        <label class="field-label">Net Result This Hand ($, use − for a loss)</label>
-        <input type="number" id="net-input" placeholder="-6 or 24" inputmode="decimal" style="margin-bottom:12px;">
         <label class="field-label">Notes (optional)</label>
         <textarea id="notes-input" placeholder="e.g. 3-bet from CO, opponent had AK"></textarea>
       </div>
@@ -486,7 +485,7 @@
       <h2 class="section-title">Preflop Tendencies</h2>
       <div class="stat-grid" id="stat-grid-preflop"></div>
 
-      <h2 class="section-title">Net by Position</h2>
+      <h2 class="section-title">Win Rate by Position</h2>
       <div class="card-block" id="pos-breakdown"></div>
 
       <h2 class="section-title">Showdown</h2>
@@ -596,7 +595,6 @@
       document.getElementById('sb-input').value='';
       document.getElementById('bb-input').value='';
     }
-    document.getElementById('net-input').value='';
     document.getElementById('notes-input').value='';
     document.getElementById('preflop-raise-amount').value='';
     document.getElementById('flop-raise-amount').value='';
@@ -908,11 +906,10 @@
   document.getElementById('save-hand-btn').addEventListener('click', async ()=>{
     state.sb = document.getElementById('sb-input').value;
     state.bb = document.getElementById('bb-input').value;
-    const netVal = document.getElementById('net-input').value;
     const notes = document.getElementById('notes-input').value;
 
-    if(!state.position || !state.hole[0] || !state.hole[1] || !state.preflopAction || netVal===''){
-      alert('Please set position, both hole cards, a preflop action, and the net result before saving.');
+    if(!state.position || !state.hole[0] || !state.hole[1] || !state.preflopAction || !state.result){
+      alert('Please set position, both hole cards, a preflop action, and the result before saving.');
       return;
     }
 
@@ -926,9 +923,8 @@
       flop: state.flopAction ? {cards: state.flop, action: state.flopAction, amount: streetAmount('flop', state.flopAction)} : null,
       turn: state.turnAction ? {card: state.turn[0], action: state.turnAction, amount: streetAmount('turn', state.turnAction)} : null,
       river: state.riverAction ? {card: state.river[0], action: state.riverAction, amount: streetAmount('river', state.riverAction)} : null,
-      result: state.result || null,
+      result: state.result,
       showdown: state.showdown === 'Yes',
-      net: parseFloat(netVal),
       notes: notes || '',
     };
 
@@ -944,10 +940,16 @@
   // ---------------- header ----------------
   function updateHeader(){
     document.getElementById('hand-count').textContent = hands.length + (hands.length===1?' hand logged':' hands logged');
-    const net = hands.reduce((s,h)=>s+(h.net||0),0);
     const el = document.getElementById('session-net');
-    el.textContent = (net>=0?'+$':'-$') + Math.abs(net).toFixed(2).replace(/\.00$/,'');
-    el.className = 'net ' + (net>=0?'pos':'neg');
+    const decided = hands.filter(h=>h.result==='Won' || h.result==='Lost');
+    if(!decided.length){
+      el.textContent = '—';
+      el.className = 'net';
+    } else {
+      const winPct = Math.round(100*decided.filter(h=>h.result==='Won').length/decided.length);
+      el.textContent = winPct + '% won';
+      el.className = 'net ' + (winPct>=50?'pos':'neg');
+    }
   }
 
   // ---------------- history render ----------------
@@ -974,14 +976,15 @@
       row.className = 'hand-row';
       const date = new Date(h.ts);
       const dateStr = date.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' ' + date.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+      const resultCls = h.result==='Won' ? 'pos' : h.result==='Lost' ? 'neg' : 'chop';
       row.innerHTML = `
         <div class="hand-row-top">
           <div class="hand-cards-mini">${cardHtml(h.hole[0])}${cardHtml(h.hole[1])}</div>
           <div class="hand-meta">${h.position} · ${dateStr}</div>
-          <div class="hand-net ${h.net>=0?'pos':'neg'}">${h.net>=0?'+':'-'}$${Math.abs(h.net).toFixed(2).replace(/\.00$/,'')}</div>
+          <div class="hand-net ${resultCls}">${h.result}</div>
         </div>
         <div class="hand-detail">
-          Blinds: ${h.sb||'—'}/${h.bb||'—'} &nbsp;·&nbsp; Result: ${h.result||'—'} &nbsp;·&nbsp; Showdown: ${h.showdown?'Yes':'No'}<br>
+          Blinds: ${h.sb||'—'}/${h.bb||'—'} &nbsp;·&nbsp; Showdown: ${h.showdown?'Yes':'No'}<br>
           ${streetSummary(h)}
           ${h.notes ? '<br><em>' + escapeHtml(h.notes) + '</em>' : ''}
           <br><button class="del-btn" data-id="${h.id}">Delete hand</button>
@@ -1014,13 +1017,14 @@
   function renderStats(){
     const total = hands.length;
     const topGrid = document.getElementById('stat-grid-top');
-    const net = hands.reduce((s,h)=>s+(h.net||0),0);
-    const avg = total ? (net/total) : 0;
+    const wonCount = hands.filter(h=>h.result==='Won').length;
+    const lostCount = hands.filter(h=>h.result==='Lost').length;
+    const winPct = total ? Math.round(100*wonCount/total) : 0;
     topGrid.innerHTML =
       statTile(total, 'Hands Logged') +
-      statTile((net>=0?'+$':'-$')+Math.abs(net).toFixed(2).replace(/\.00$/,''), 'Net Result', net>=0?'pos':'neg') +
-      statTile((avg>=0?'+$':'-$')+Math.abs(avg).toFixed(2), 'Avg / Hand', avg>=0?'pos':'neg') +
-      statTile(total ? Math.round(100*hands.filter(h=>h.net>0).length/total)+'%' : '—', 'Hands Won');
+      statTile(total ? winPct+'%' : '—', 'Win Rate', winPct>=50?'pos':'neg') +
+      statTile(wonCount, 'Won', 'pos') +
+      statTile(lostCount, 'Lost', 'neg');
 
     const preGrid = document.getElementById('stat-grid-preflop');
     const vpip = total ? Math.round(100*hands.filter(h=>h.preflop.action!=='Fold').length/total) : 0;
@@ -1034,23 +1038,22 @@
       posEl.innerHTML = '<div class="empty-state" style="padding:20px;">Log hands to see position breakdown.</div>';
     } else {
       const byPos = {};
-      hands.forEach(h=>{ byPos[h.position] = byPos[h.position] || {net:0,count:0}; byPos[h.position].net += h.net; byPos[h.position].count++; });
-      const maxAbs = Math.max(1, ...Object.values(byPos).map(v=>Math.abs(v.net)));
+      hands.forEach(h=>{ byPos[h.position] = byPos[h.position] || {won:0,count:0}; if(h.result==='Won') byPos[h.position].won++; byPos[h.position].count++; });
       posEl.innerHTML = POSITIONS.filter(p=>byPos[p]).map(p=>{
         const v = byPos[p];
-        const pct = Math.round(100*Math.abs(v.net)/maxAbs);
-        const color = v.net>=0 ? 'var(--win)' : 'var(--loss)';
+        const pct = Math.round(100*v.won/v.count);
+        const color = pct>=50 ? 'var(--win)' : 'var(--loss)';
         return `<div class="pos-bar-row">
           <div class="pos-bar-label">${p}</div>
           <div class="pos-bar-track"><div class="pos-bar-fill" style="width:${pct}%; background:${color};"></div></div>
-          <div class="pos-bar-val" style="color:${color};">${v.net>=0?'+':'-'}$${Math.abs(v.net).toFixed(0)}</div>
+          <div class="pos-bar-val" style="color:${color};">${pct}% (${v.count})</div>
         </div>`;
       }).join('');
     }
 
     const sdGrid = document.getElementById('stat-grid-showdown');
     const sdHands = hands.filter(h=>h.showdown);
-    const sdWinPct = sdHands.length ? Math.round(100*sdHands.filter(h=>h.net>0).length/sdHands.length) : 0;
+    const sdWinPct = sdHands.length ? Math.round(100*sdHands.filter(h=>h.result==='Won').length/sdHands.length) : 0;
     sdGrid.innerHTML =
       statTile(sdHands.length, 'Times to Showdown') +
       statTile(sdHands.length? sdWinPct+'%' : '—', 'Won at Showdown');
