@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>The Ledger — Home Game Tracker</title>
+<meta name="description" content="Track your poker hands, hand histories, and session stats.">
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1B4638">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="The Ledger">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --felt-dark:#122A22;
+    --felt:#1B4638;
+    --felt-light:#235948;
+    --cream:#EFE7D6;
+    --cream-dim:#D9CFB8;
+    --ink:#201E19;
+    --red:#B23A48;
+    --gold:#C9A227;
+    --line: rgba(239,231,214,0.14);
+    --line-strong: rgba(239,231,214,0.28);
+    --win: #6FA97C;
+    --loss: #C25B54;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; height:100%;}
+  body{
+    background: radial-gradient(120% 140% at 50% -10%, var(--felt-light) 0%, var(--felt) 45%, var(--felt-dark) 100%);
+    color: var(--cream);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+  }
+  #app{
+    width:100%;
+    max-width:480px;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+  }
+
+  /* ---------- Header ---------- */
+  header{
+    padding:18px 20px 14px;
+    border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:20;
+    background:linear-gradient(180deg, var(--felt-dark) 0%, rgba(18,42,34,0.96) 80%, rgba(18,42,34,0.85) 100%);
+    backdrop-filter: blur(6px);
+  }
+  .brand{
+    font-family:'Roboto Slab', serif;
+    font-weight:700;
+    font-size:22px;
+    letter-spacing:0.02em;
+    display:flex; align-items:baseline; gap:8px;
+  }
+  .brand .suits{ color:var(--gold); font-size:15px; letter-spacing:2px; }
+  .session-line{
+    margin-top:6px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--cream-dim);
+    display:flex; justify-content:space-between;
+  }
+  .session-line .net.pos{ color:var(--win); }
+  .session-line .net.neg{ color:var(--loss); }
+
+  main{ flex:1; padding:18px 16px 100px; }
+
+  h2.section-title{
+    font-family:'Roboto Slab', serif;
+    font-size:15px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--gold);
+    margin:0 0 12px;
+    display:flex; align-items:center; gap:10px;
+  }
+  h2.section-title::after{
+    content:''; flex:1; height:1px; background:var(--line);
+  }
+
+  .card-block{
+    background: rgba(239,231,214,0.05);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px;
+    margin-bottom:16px;
+  }
+
+  label.field-label{
+    display:block;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.07em;
+    color:var(--cream-dim);
+    margin-bottom:8px;
+  }
+
+  .chip-row{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  .chip{
+    padding:8px 13px;
+    border-radius:20px;
+    border:1px solid var(--line-strong);
+    background:transparent;
+    color:var(--cream);
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  .chip:active{ transform: scale(0.96); }
+  .chip.selected{
+    background:var(--gold);
+    border-color:var(--gold);
+    color:var(--ink);
+    font-weight:600;
+  }
+
+  input[type=number], input[type=text]{
+    width:100%;
+    background:rgba(0,0,0,0.2);
+    border:1px solid var(--line-strong);
+    border-radius:8px;
+    padding:10px 12px;
+    color:var(--cream);
+    font-family:'JetBrains Mono', monospace;
+    font-size:15px;
+  }
+  input::placeholder{ color:rgba(239,231,214,0.35); }
+  input:focus, .chip:focus, button:focus{ outline:2px solid var(--gold); outline-offset:1px; }
+
+  .two-col{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+  /* card picker */
+  .card-slots{ display:flex; gap:8px; margin-bottom:12px; }
+  .card-slot{
+    width:46px; height:62px;
+    border:1.5px dashed var(--line-strong);
+    border-radius:7px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Roboto Slab', serif;
+    font-weight:700;
+    font-size:16px;
+    background:rgba(0,0,0,0.15);
+    color: var(--cream);
+    position:relative;
+  }
+  .card-slot.filled{
+    background:var(--cream);
+    color:var(--ink);
+    border-style:solid;
+    border-color:var(--cream);
+  }
+  .card-slot.filled.red{ color:var(--red); }
+  .card-slot .clear-x{
+    position:absolute; top:-6px; right:-6px;
+    width:18px;height:18px;border-radius:50%;
+    background:var(--felt-dark); color:var(--cream);
+    border:1px solid var(--line-strong);
+    font-size:11px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+  }
+  .picker{
+    border-top:1px solid var(--line);
+    padding-top:12px;
+    margin-top:4px;
+  }
+  .rank-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:8px; }
+  .rank-btn{
+    padding:8px 0;
+    text-align:center;
+    border:1px solid var(--line-strong);
+    border-radius:6px;
+    background:rgba(0,0,0,0.15);
+    color:var(--cream);
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+    cursor:pointer;
+  }
+  .suit-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .suit-btn{
+    padding:10px 0; text-align:center;
+    border:1px solid var(--line-strong);
+    border-radius:6px;
+    background:rgba(0,0,0,0.15);
+    font-size:18px; cursor:pointer;
+  }
+  .suit-btn.s, .suit-btn.c{ color:var(--cream); }
+  .suit-btn.h, .suit-btn.d{ color:var(--red); }
+
+  textarea{
+    width:100%; min-height:56px;
+    background:rgba(0,0,0,0.2);
+    border:1px solid var(--line-strong);
+    border-radius:8px;
+    padding:10px 12px;
+    color:var(--cream);
+    font-family:'Inter', sans-serif;
+    font-size:14px;
+    resize:vertical;
+  }
+
+  .save-btn{
+    width:100%;
+    padding:14px;
+    border-radius:9px;
+    border:none;
+    background:var(--gold);
+    color:var(--ink);
+    font-family:'Roboto Slab', serif;
+    font-weight:700;
+    font-size:15px;
+    letter-spacing:0.03em;
+    cursor:pointer;
+    margin-top:6px;
+  }
+  .save-btn:active{ transform: scale(0.98); }
+  .save-btn:disabled{ opacity:0.4; }
+
+  .fold-banner{
+    text-align:center;
+    padding:10px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--cream-dim);
+    border:1px dashed var(--line-strong);
+    border-radius:8px;
+    margin-bottom:16px;
+  }
+  .pick-hint{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--gold);
+    margin-top:2px;
+  }
+  .amount-note{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--cream-dim);
+    margin-top:8px;
+  }
+  .card-warn{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--loss);
+    margin-top:6px;
+    display:none;
+  }
+
+  /* ---------- History ---------- */
+  .hand-row{
+    background:rgba(239,231,214,0.05);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 14px;
+    margin-bottom:10px;
+    cursor:pointer;
+  }
+  .hand-row-top{
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .hand-cards-mini{ display:flex; gap:4px; }
+  .mini-card{
+    width:26px; height:34px; border-radius:4px;
+    background:var(--cream); color:var(--ink);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono', monospace; font-weight:700; font-size:12px;
+  }
+  .mini-card.red{ color:var(--red); }
+  .hand-meta{ font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--cream-dim); }
+  .hand-net{ font-family:'JetBrains Mono', monospace; font-weight:700; font-size:15px; }
+  .hand-net.pos{ color:var(--win); }
+  .hand-net.neg{ color:var(--loss); }
+  .hand-detail{
+    margin-top:10px; padding-top:10px; border-top:1px solid var(--line);
+    font-size:13px; line-height:1.6; color:var(--cream-dim);
+    display:none;
+  }
+  .hand-row.open .hand-detail{ display:block; }
+  .del-btn{
+    margin-top:10px; font-size:11px; color:var(--loss);
+    background:none; border:1px solid var(--loss); border-radius:6px;
+    padding:5px 10px; cursor:pointer; font-family:'JetBrains Mono', monospace;
+  }
+  .empty-state{
+    text-align:center; padding:60px 20px; color:var(--cream-dim);
+    font-family:'JetBrains Mono', monospace; font-size:13px;
+  }
+
+  /* ---------- Stats ---------- */
+  .stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+  .stat-tile{
+    background:rgba(239,231,214,0.05);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px;
+  }
+  .stat-num{
+    font-family:'Roboto Slab', serif; font-weight:700; font-size:24px;
+  }
+  .stat-num.pos{ color:var(--win); }
+  .stat-num.neg{ color:var(--loss); }
+  .stat-label{ font-size:11px; color:var(--cream-dim); text-transform:uppercase; letter-spacing:0.06em; margin-top:4px;}
+  .pos-bar-row{ display:flex; align-items:center; gap:10px; margin-bottom:8px; font-family:'JetBrains Mono', monospace; font-size:12px;}
+  .pos-bar-label{ width:36px; color:var(--cream-dim); }
+  .pos-bar-track{ flex:1; height:8px; background:rgba(0,0,0,0.25); border-radius:4px; overflow:hidden;}
+  .pos-bar-fill{ height:100%; border-radius:4px; }
+  .pos-bar-val{ width:56px; text-align:right; }
+
+  /* ---------- Tab bar ---------- */
+  nav.tabbar{
+    position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+    width:100%; max-width:480px;
+    display:flex;
+    background: rgba(18,42,34,0.97);
+    border-top:1px solid var(--line);
+    backdrop-filter: blur(6px);
+    z-index:30;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  nav.tabbar button{
+    flex:1; padding:12px 0 10px; background:none; border:none;
+    color:var(--cream-dim); font-family:'Inter', sans-serif; font-size:11px;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    cursor:pointer;
+  }
+  nav.tabbar button .icon{ font-size:18px; }
+  nav.tabbar button.active{ color:var(--gold); }
+
+  .view{ display:none; }
+  .view.active{ display:block; }
+
+  ::-webkit-scrollbar{ width:0; height:0; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="brand">The Ledger <span class="suits">♠ ♥ ♦ ♣</span></div>
+    <div class="session-line">
+      <span id="hand-count">0 hands logged</span>
+      <span id="session-net" class="net">$0</span>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ============ LOG VIEW ============ -->
+    <section id="view-log" class="view active">
+
+      <h2 class="section-title">Setup</h2>
+      <div class="card-block">
+        <label class="field-label">Your Position</label>
+        <div class="chip-row" id="position-chips"></div>
+        <label class="field-label">Blinds</label>
+        <div class="chip-row" id="blinds-chips"></div>
+        <div class="two-col" id="custom-blinds-wrap" style="display:none;">
+          <div>
+            <label class="field-label">Small Blind</label>
+            <input type="number" id="sb-input" placeholder="1" inputmode="decimal">
+          </div>
+          <div>
+            <label class="field-label">Big Blind</label>
+            <input type="number" id="bb-input" placeholder="2" inputmode="decimal">
+          </div>
+        </div>
+      </div>
+
+      <h2 class="section-title">Hole Cards</h2>
+      <div class="card-block">
+        <div class="card-slots" id="hole-slots"></div>
+        <div class="picker" id="hole-picker"></div>
+      </div>
+
+      <h2 class="section-title">Preflop</h2>
+      <div class="card-block">
+        <label class="field-label">Your Action</label>
+        <div class="chip-row" id="preflop-action-chips"></div>
+        <div id="preflop-raise-wrap" style="display:none;">
+          <label class="field-label">Raise To</label>
+          <input type="number" id="preflop-raise-amount" inputmode="decimal">
+        </div>
+      </div>
+
+      <div id="street-flop-wrap" style="display:none;">
+        <h2 class="section-title">Flop</h2>
+        <div class="card-block">
+          <div class="card-slots" id="flop-slots"></div>
+          <div class="picker" id="flop-picker"></div>
+          <div class="pick-hint" id="flop-hint" style="display:none;"></div>
+          <label class="field-label" style="margin-top:10px;" id="flop-action-label">Your Action</label>
+          <div class="chip-row" id="flop-action-chips"></div>
+          <div class="amount-note" id="flop-amount-note" style="display:none;"></div>
+          <div id="flop-raise-wrap" style="display:none;">
+            <label class="field-label">Raise To</label>
+            <input type="number" id="flop-raise-amount" inputmode="decimal">
+          </div>
+        </div>
+      </div>
+
+      <div id="street-turn-wrap" style="display:none;">
+        <h2 class="section-title">Turn</h2>
+        <div class="card-block">
+          <div class="card-slots" id="turn-slots"></div>
+          <div class="picker" id="turn-picker"></div>
+          <div class="pick-hint" id="turn-hint" style="display:none;"></div>
+          <label class="field-label" style="margin-top:10px;" id="turn-action-label">Your Action</label>
+          <div class="chip-row" id="turn-action-chips"></div>
+          <div class="amount-note" id="turn-amount-note" style="display:none;"></div>
+          <div id="turn-raise-wrap" style="display:none;">
+            <label class="field-label">Raise To</label>
+            <input type="number" id="turn-raise-amount" inputmode="decimal">
+          </div>
+        </div>
+      </div>
+
+      <div id="street-river-wrap" style="display:none;">
+        <h2 class="section-title">River</h2>
+        <div class="card-block">
+          <div class="card-slots" id="river-slots"></div>
+          <div class="picker" id="river-picker"></div>
+          <div class="pick-hint" id="river-hint" style="display:none;"></div>
+          <label class="field-label" style="margin-top:10px;" id="river-action-label">Your Action</label>
+          <div class="chip-row" id="river-action-chips"></div>
+          <div class="amount-note" id="river-amount-note" style="display:none;"></div>
+          <div id="river-raise-wrap" style="display:none;">
+            <label class="field-label">Raise To</label>
+            <input type="number" id="river-raise-amount" inputmode="decimal">
+          </div>
+        </div>
+      </div>
+
+      <div id="folded-banner" class="fold-banner" style="display:none;"></div>
+
+      <h2 class="section-title">Outcome</h2>
+      <div class="card-block">
+        <label class="field-label">Result</label>
+        <div class="chip-row" id="result-chips"></div>
+        <label class="field-label">Reached Showdown?</label>
+        <div class="chip-row" id="showdown-chips"></div>
+        <label class="field-label">Net Result This Hand ($, use − for a loss)</label>
+        <input type="number" id="net-input" placeholder="-6 or 24" inputmode="decimal" style="margin-bottom:12px;">
+        <label class="field-label">Notes (optional)</label>
+        <textarea id="notes-input" placeholder="e.g. 3-bet from CO, opponent had AK"></textarea>
+      </div>
+
+      <button class="save-btn" id="save-hand-btn">Save Hand</button>
+    </section>
+
+    <!-- ============ HISTORY VIEW ============ -->
+    <section id="view-history" class="view">
+      <h2 class="section-title">Hand History</h2>
+      <div id="history-list"></div>
+    </section>
+
+    <!-- ============ STATS VIEW ============ -->
+    <section id="view-stats" class="view">
+      <h2 class="section-title">Session Overview</h2>
+      <div class="stat-grid" id="stat-grid-top"></div>
+
+      <h2 class="section-title">Preflop Tendencies</h2>
+      <div class="stat-grid" id="stat-grid-preflop"></div>
+
+      <h2 class="section-title">Net by Position</h2>
+      <div class="card-block" id="pos-breakdown"></div>
+
+      <h2 class="section-title">Showdown</h2>
+      <div class="stat-grid" id="stat-grid-showdown"></div>
+    </section>
+
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab-btn active" data-view="log"><span class="icon">✎</span>Log Hand</button>
+    <button class="tab-btn" data-view="history"><span class="icon">☰</span>History</button>
+    <button class="tab-btn" data-view="stats"><span class="icon">◈</span>Stats</button>
+  </nav>
+
+</div>
+
+<script>
+  // Persists hand history to localStorage. Keeps the same shape as the
+  // sandboxed window.storage API this app was originally written against.
+  if(!window.storage){
+    window.storage = {
+      async get(key){ return { value: localStorage.getItem(key) }; },
+      async set(key, value){ localStorage.setItem(key, value); },
+    };
+  }
+
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', ()=>{
+      navigator.serviceWorker.register('sw.js').catch(err=>console.error('SW registration failed', err));
+    });
+  }
+</script>
+<script>
+(function(){
+
+  const RANKS = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
+  const SUITS = [
+    {sym:'♠', code:'s', red:false},
+    {sym:'♥', code:'h', red:true},
+    {sym:'♦', code:'d', red:true},
+    {sym:'♣', code:'c', red:false},
+  ];
+  const POSITIONS = ['SB','BB','UTG','UTG+1','MP','MP+1','HJ','CO','BTN'];
+  const ACTIONS_PRE = ['Fold','Call','Raise'];
+  const ACTIONS_POST = ['Check','Bet','Call','Raise','Fold'];
+  const BLIND_PRESETS = ['10/20','25/50','50/100','100/200','200/400','500/1000','1000/2000','Custom'];
+
+  let hands = [];
+  let storageReady = false;
+
+  // ---------------- storage ----------------
+  async function loadHands(){
+    try{
+      const res = await window.storage.get('poker-hands', false);
+      hands = res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){
+      hands = [];
+    }
+    storageReady = true;
+    renderHistory();
+    renderStats();
+    updateHeader();
+  }
+  async function saveHands(){
+    try{
+      await window.storage.set('poker-hands', JSON.stringify(hands), false);
+    }catch(e){
+      console.error('storage save failed', e);
+    }
+  }
+
+  // ---------------- state for the in-progress form ----------------
+  let state = {
+    position: null,
+    blindChoice: null,
+    sb: '', bb: '',
+    hole: [null, null],
+    preflopAction: null,
+    flop: [null,null,null],
+    flopAction: null,
+    turn: [null],
+    turnAction: null,
+    river: [null],
+    riverAction: null,
+    result: null,
+    showdown: null,
+  };
+
+  function resetState(){
+    // keep blindChoice/sb/bb — same table usually keeps the same stakes hand to hand
+    const keepBlindChoice = state.blindChoice;
+    const keepSb = state.sb;
+    const keepBb = state.bb;
+    state = {
+      position: null, blindChoice: keepBlindChoice, sb:keepSb, bb:keepBb,
+      hole:[null,null],
+      preflopAction:null,
+      flop:[null,null,null], flopAction:null,
+      turn:[null], turnAction:null,
+      river:[null], riverAction:null,
+      result:null, showdown:null,
+    };
+    if(keepBlindChoice !== null){
+      document.getElementById('sb-input').value = keepSb;
+      document.getElementById('bb-input').value = keepBb;
+    } else {
+      document.getElementById('sb-input').value='';
+      document.getElementById('bb-input').value='';
+    }
+    document.getElementById('net-input').value='';
+    document.getElementById('notes-input').value='';
+    document.getElementById('preflop-raise-amount').value='';
+    document.getElementById('flop-raise-amount').value='';
+    document.getElementById('turn-raise-amount').value='';
+    document.getElementById('river-raise-amount').value='';
+    renderAll();
+  }
+
+  // ---------------- chip row builder ----------------
+  function buildChipRow(containerId, options, currentGetter, onSelect){
+    const el = document.getElementById(containerId);
+    el.innerHTML = '';
+    options.forEach(opt=>{
+      const b = document.createElement('button');
+      b.className = 'chip' + (currentGetter()===opt ? ' selected' : '');
+      b.textContent = opt;
+      b.type = 'button';
+      b.addEventListener('click', ()=>{ onSelect(opt); renderAll(); });
+      el.appendChild(b);
+    });
+  }
+
+  // ---------------- card slot + picker builder ----------------
+  function getAllUsedCardKeys(excludeArr){
+    const all = [];
+    [state.hole, state.flop, state.turn, state.river].forEach(arr=>{
+      if(arr === excludeArr) return; // allow re-checking within the same slot group without self-blocking on re-render
+      arr.forEach(c=>{ if(c) all.push(c.rank + c.suit); });
+    });
+    return all;
+  }
+
+  function buildCardUI(slotsId, pickerId, cardsArr, onChange){
+    const slotsEl = document.getElementById(slotsId);
+    slotsEl.innerHTML = '';
+    cardsArr.forEach((c, idx)=>{
+      const slot = document.createElement('div');
+      slot.className = 'card-slot' + (c ? ' filled' + (c.red ? ' red':'') : '');
+      slot.textContent = c ? (c.rank + c.suit) : '?';
+      if(c){
+        const x = document.createElement('span');
+        x.className='clear-x'; x.textContent='×';
+        x.addEventListener('click',(e)=>{ e.stopPropagation(); cardsArr[idx]=null; onChange(); renderAll(); });
+        slot.appendChild(x);
+      }
+      slotsEl.appendChild(slot);
+    });
+
+    const pickerEl = document.getElementById(pickerId);
+    const nextEmpty = cardsArr.findIndex(c=>!c);
+    if(nextEmpty === -1){ pickerEl.innerHTML=''; return; }
+
+    pickerEl.innerHTML = '';
+    const rankGrid = document.createElement('div');
+    rankGrid.className='rank-grid';
+    let pendingRank = pickerEl.dataset.pendingRank || null;
+
+    RANKS.forEach(r=>{
+      const b = document.createElement('div');
+      b.className='rank-btn';
+      b.textContent = r;
+      if(pendingRank === r) b.style.background = 'var(--gold)', b.style.color='var(--ink)';
+      b.addEventListener('click', ()=>{
+        pickerEl.dataset.pendingRank = r;
+        buildCardUI(slotsId, pickerId, cardsArr, onChange);
+      });
+      rankGrid.appendChild(b);
+    });
+    pickerEl.appendChild(rankGrid);
+
+    const suitGrid = document.createElement('div');
+    suitGrid.className='suit-grid';
+    SUITS.forEach(s=>{
+      const b = document.createElement('div');
+      b.className = 'suit-btn ' + s.code;
+      b.textContent = s.sym;
+      b.addEventListener('click', ()=>{
+        const rank = pickerEl.dataset.pendingRank;
+        if(!rank) return;
+        const key = rank + s.sym;
+        const used = getAllUsedCardKeys(cardsArr).concat(
+          cardsArr.filter((c,i)=>c && i!==nextEmpty).map(c=>c.rank+c.suit)
+        );
+        if(used.includes(key)){
+          pickerEl.dataset.pendingRank = '';
+          buildCardUI(slotsId, pickerId, cardsArr, onChange);
+          const newWarn = pickerEl.querySelector('.card-warn');
+          if(newWarn){
+            newWarn.textContent = key + ' is already in this hand — pick a different card.';
+            newWarn.style.display = 'block';
+          }
+          return;
+        }
+        cardsArr[nextEmpty] = {rank, suit:s.sym, red:s.red};
+        pickerEl.dataset.pendingRank = '';
+        onChange();
+        renderAll();
+      });
+      suitGrid.appendChild(b);
+    });
+    pickerEl.appendChild(suitGrid);
+
+    const warnEl = document.createElement('div');
+    warnEl.className = 'card-warn';
+    pickerEl.appendChild(warnEl);
+  }
+
+  // ---------------- amount note helper ----------------
+  // Postflop Bet/Call isn't tracked in dollars — it's simply tagged at the
+  // hand's big blind so there's nothing to type. Raise gets its own input below.
+  function updateAmountNote(street, action){
+    const note = document.getElementById(street+'-amount-note');
+    if(action && action !== 'Fold' && action !== 'Check' && action !== 'Raise' && state.bb){
+      note.style.display = 'block';
+      note.textContent = 'Logged at the big blind: $' + state.bb;
+    } else {
+      note.style.display = 'none';
+    }
+  }
+
+  // ---------------- raise input helper ----------------
+  // Raise lets you specify the size, defaulting to the current big blind
+  // the first time it's shown (won't clobber a value you've already typed).
+  function updateRaiseInput(street, action){
+    const wrap = document.getElementById(street+'-raise-wrap');
+    const input = document.getElementById(street+'-raise-amount');
+    if(action === 'Raise'){
+      wrap.style.display = 'block';
+      if(!input.value && state.bb){ input.value = state.bb; }
+    } else {
+      wrap.style.display = 'none';
+    }
+  }
+
+  // ---------------- gate helper ----------------
+  function toggleActionSection(street, cardsDone, cardsRemaining){
+    const label = document.getElementById(street+'-action-label');
+    const chips = document.getElementById(street+'-action-chips');
+    const hint = document.getElementById(street+'-hint');
+    if(cardsDone){
+      label.style.display = '';
+      chips.style.display = '';
+      hint.style.display = 'none';
+    } else {
+      label.style.display = 'none';
+      chips.style.display = 'none';
+      chips.innerHTML = '';
+      hint.style.display = 'block';
+      hint.textContent = '↑ Pick ' + cardsRemaining + ' more card' + (cardsRemaining===1?'':'s') + ' above to choose your action.';
+    }
+  }
+
+  // ---------------- main render ----------------
+  function renderAll(){
+    // position
+    buildChipRow('position-chips', POSITIONS, ()=>state.position, (v)=>state.position=v);
+
+    // blinds
+    buildChipRow('blinds-chips', BLIND_PRESETS, ()=>state.blindChoice, (v)=>{
+      state.blindChoice = v;
+      if(v === 'Custom'){
+        state.sb = document.getElementById('sb-input').value;
+        state.bb = document.getElementById('bb-input').value;
+      } else {
+        const [sb, bb] = v.split('/');
+        state.sb = sb; state.bb = bb;
+        document.getElementById('sb-input').value = sb;
+        document.getElementById('bb-input').value = bb;
+      }
+    });
+    document.getElementById('custom-blinds-wrap').style.display = (state.blindChoice === 'Custom') ? 'block' : 'none';
+
+    // hole cards
+    buildCardUI('hole-slots','hole-picker', state.hole, ()=>{});
+
+    // preflop action
+    buildChipRow('preflop-action-chips', ACTIONS_PRE, ()=>state.preflopAction, (v)=>{
+      state.preflopAction = v;
+      if(v==='Fold'){ state.flop=[null,null,null]; state.flopAction=null; state.turn=[null]; state.turnAction=null; state.river=[null]; state.riverAction=null; }
+    });
+    updateRaiseInput('preflop', state.preflopAction);
+
+    const playedPreflop = state.preflopAction && state.preflopAction !== 'Fold';
+    document.getElementById('street-flop-wrap').style.display = playedPreflop ? 'block' : 'none';
+
+    if(playedPreflop){
+      buildCardUI('flop-slots','flop-picker', state.flop, ()=>{});
+      const flopCardsDone = state.flop.every(c=>c);
+      toggleActionSection('flop', flopCardsDone, 3 - state.flop.filter(c=>c).length);
+      if(flopCardsDone){
+        buildChipRow('flop-action-chips', ACTIONS_POST, ()=>state.flopAction, (v)=>{
+          state.flopAction = v;
+          if(v==='Fold'){ state.turn=[null]; state.turnAction=null; state.river=[null]; state.riverAction=null; }
+        });
+      } else if(state.flopAction){
+        state.flopAction = null; // cards were cleared after an action was set; reset so flow stays consistent
+      }
+      updateAmountNote('flop', flopCardsDone ? state.flopAction : null);
+      updateRaiseInput('flop', flopCardsDone ? state.flopAction : null);
+    }
+
+    const playedFlop = playedPreflop && state.flop.every(c=>c) && state.flopAction && state.flopAction !== 'Fold';
+    document.getElementById('street-turn-wrap').style.display = playedFlop ? 'block':'none';
+    if(playedFlop){
+      buildCardUI('turn-slots','turn-picker', state.turn, ()=>{});
+      const turnCardDone = !!state.turn[0];
+      toggleActionSection('turn', turnCardDone, turnCardDone ? 0 : 1);
+      if(turnCardDone){
+        buildChipRow('turn-action-chips', ACTIONS_POST, ()=>state.turnAction, (v)=>{
+          state.turnAction = v;
+          if(v==='Fold'){ state.river=[null]; state.riverAction=null; }
+        });
+      } else if(state.turnAction){
+        state.turnAction = null;
+      }
+      updateAmountNote('turn', turnCardDone ? state.turnAction : null);
+      updateRaiseInput('turn', turnCardDone ? state.turnAction : null);
+    }
+
+    const playedTurn = playedFlop && state.turn[0] && state.turnAction && state.turnAction !== 'Fold';
+    document.getElementById('street-river-wrap').style.display = playedTurn ? 'block':'none';
+    if(playedTurn){
+      buildCardUI('river-slots','river-picker', state.river, ()=>{});
+      const riverCardDone = !!state.river[0];
+      toggleActionSection('river', riverCardDone, riverCardDone ? 0 : 1);
+      if(riverCardDone){
+        buildChipRow('river-action-chips', ACTIONS_POST, ()=>state.riverAction, (v)=>{ state.riverAction = v; });
+      } else if(state.riverAction){
+        state.riverAction = null;
+      }
+      updateAmountNote('river', riverCardDone ? state.riverAction : null);
+      updateRaiseInput('river', riverCardDone ? state.riverAction : null);
+    }
+
+    // fold banner
+    const foldedAt = !playedPreflop && state.preflopAction==='Fold' ? 'preflop'
+      : (playedPreflop && state.flopAction==='Fold') ? 'the flop'
+      : (playedFlop && state.turnAction==='Fold') ? 'the turn'
+      : (playedTurn && state.riverAction==='Fold') ? 'the river' : null;
+    const banner = document.getElementById('folded-banner');
+    if(foldedAt){
+      banner.style.display='block';
+      banner.textContent = 'Folded ' + foldedAt + ' — later streets skipped.';
+    } else {
+      banner.style.display='none';
+    }
+
+    buildChipRow('result-chips', ['Won','Lost','Chopped'], ()=>state.result, (v)=>state.result=v);
+    buildChipRow('showdown-chips', ['Yes','No'], ()=>state.showdown, (v)=>state.showdown=v);
+  }
+
+  // ---------------- save ----------------
+  document.getElementById('save-hand-btn').addEventListener('click', async ()=>{
+    state.sb = document.getElementById('sb-input').value;
+    state.bb = document.getElementById('bb-input').value;
+    const netVal = document.getElementById('net-input').value;
+    const notes = document.getElementById('notes-input').value;
+
+    if(!state.position || !state.hole[0] || !state.hole[1] || !state.preflopAction || netVal===''){
+      alert('Please set position, both hole cards, a preflop action, and the net result before saving.');
+      return;
+    }
+
+    const streetAmount = (street, action) => {
+      if(action === 'Raise'){
+        const v = document.getElementById(street+'-raise-amount').value;
+        return v !== '' ? v : state.bb;
+      }
+      if(action && action !== 'Fold' && action !== 'Check') return state.bb;
+      return null;
+    };
+
+    const hand = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
+      ts: Date.now(),
+      position: state.position,
+      sb: state.sb, bb: state.bb,
+      hole: state.hole,
+      preflop: {action: state.preflopAction, amount: streetAmount('preflop', state.preflopAction)},
+      flop: state.flopAction ? {cards: state.flop, action: state.flopAction, amount: streetAmount('flop', state.flopAction)} : null,
+      turn: state.turnAction ? {card: state.turn[0], action: state.turnAction, amount: streetAmount('turn', state.turnAction)} : null,
+      river: state.riverAction ? {card: state.river[0], action: state.riverAction, amount: streetAmount('river', state.riverAction)} : null,
+      result: state.result || null,
+      showdown: state.showdown === 'Yes',
+      net: parseFloat(netVal),
+      notes: notes || '',
+    };
+
+    hands.unshift(hand);
+    await saveHands();
+    resetState();
+    updateHeader();
+    renderHistory();
+    renderStats();
+    switchView('history');
+  });
+
+  // ---------------- header ----------------
+  function updateHeader(){
+    document.getElementById('hand-count').textContent = hands.length + (hands.length===1?' hand logged':' hands logged');
+    const net = hands.reduce((s,h)=>s+(h.net||0),0);
+    const el = document.getElementById('session-net');
+    el.textContent = (net>=0?'+$':'-$') + Math.abs(net).toFixed(2).replace(/\.00$/,'');
+    el.className = 'net ' + (net>=0?'pos':'neg');
+  }
+
+  // ---------------- history render ----------------
+  function cardHtml(c){
+    if(!c) return '';
+    return '<div class="mini-card' + (c.red?' red':'') + '">' + c.rank + c.suit + '</div>';
+  }
+  function streetSummary(h){
+    let parts = ['Preflop: ' + h.preflop.action + (h.preflop.amount? ' $'+h.preflop.amount:'')];
+    if(h.flop) parts.push('Flop ' + h.flop.cards.map(c=>c.rank+c.suit).join(' ') + ': ' + h.flop.action + (h.flop.amount?' $'+h.flop.amount:''));
+    if(h.turn) parts.push('Turn ' + h.turn.card.rank+h.turn.card.suit + ': ' + h.turn.action + (h.turn.amount?' $'+h.turn.amount:''));
+    if(h.river) parts.push('River ' + h.river.card.rank+h.river.card.suit + ': ' + h.river.action + (h.river.amount?' $'+h.river.amount:''));
+    return parts.join('<br>');
+  }
+  function renderHistory(){
+    const el = document.getElementById('history-list');
+    if(!hands.length){
+      el.innerHTML = '<div class="empty-state">No hands logged yet.<br>Your first entry will show up here.</div>';
+      return;
+    }
+    el.innerHTML = '';
+    hands.forEach(h=>{
+      const row = document.createElement('div');
+      row.className = 'hand-row';
+      const date = new Date(h.ts);
+      const dateStr = date.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' ' + date.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+      row.innerHTML = `
+        <div class="hand-row-top">
+          <div class="hand-cards-mini">${cardHtml(h.hole[0])}${cardHtml(h.hole[1])}</div>
+          <div class="hand-meta">${h.position} · ${dateStr}</div>
+          <div class="hand-net ${h.net>=0?'pos':'neg'}">${h.net>=0?'+':'-'}$${Math.abs(h.net).toFixed(2).replace(/\.00$/,'')}</div>
+        </div>
+        <div class="hand-detail">
+          Blinds: ${h.sb||'—'}/${h.bb||'—'} &nbsp;·&nbsp; Result: ${h.result||'—'} &nbsp;·&nbsp; Showdown: ${h.showdown?'Yes':'No'}<br>
+          ${streetSummary(h)}
+          ${h.notes ? '<br><em>' + escapeHtml(h.notes) + '</em>' : ''}
+          <br><button class="del-btn" data-id="${h.id}">Delete hand</button>
+        </div>
+      `;
+      row.addEventListener('click', (e)=>{
+        if(e.target.classList.contains('del-btn')) return;
+        row.classList.toggle('open');
+      });
+      row.querySelector('.del-btn').addEventListener('click', async (e)=>{
+        e.stopPropagation();
+        if(!confirm('Delete this hand?')) return;
+        hands = hands.filter(x=>x.id !== h.id);
+        await saveHands();
+        updateHeader();
+        renderHistory();
+        renderStats();
+      });
+      el.appendChild(row);
+    });
+  }
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---------------- stats render ----------------
+  function statTile(num, label, cls){
+    return `<div class="stat-tile"><div class="stat-num ${cls||''}">${num}</div><div class="stat-label">${label}</div></div>`;
+  }
+  function renderStats(){
+    const total = hands.length;
+    const topGrid = document.getElementById('stat-grid-top');
+    const net = hands.reduce((s,h)=>s+(h.net||0),0);
+    const avg = total ? (net/total) : 0;
+    topGrid.innerHTML =
+      statTile(total, 'Hands Logged') +
+      statTile((net>=0?'+$':'-$')+Math.abs(net).toFixed(2).replace(/\.00$/,''), 'Net Result', net>=0?'pos':'neg') +
+      statTile((avg>=0?'+$':'-$')+Math.abs(avg).toFixed(2), 'Avg / Hand', avg>=0?'pos':'neg') +
+      statTile(total ? Math.round(100*hands.filter(h=>h.net>0).length/total)+'%' : '—', 'Hands Won');
+
+    const preGrid = document.getElementById('stat-grid-preflop');
+    const vpip = total ? Math.round(100*hands.filter(h=>h.preflop.action!=='Fold').length/total) : 0;
+    const pfr = total ? Math.round(100*hands.filter(h=>h.preflop.action==='Raise').length/total) : 0;
+    preGrid.innerHTML =
+      statTile(total? vpip+'%':'—', 'VPIP') +
+      statTile(total? pfr+'%':'—', 'PFR');
+
+    const posEl = document.getElementById('pos-breakdown');
+    if(!total){
+      posEl.innerHTML = '<div class="empty-state" style="padding:20px;">Log hands to see position breakdown.</div>';
+    } else {
+      const byPos = {};
+      hands.forEach(h=>{ byPos[h.position] = byPos[h.position] || {net:0,count:0}; byPos[h.position].net += h.net; byPos[h.position].count++; });
+      const maxAbs = Math.max(1, ...Object.values(byPos).map(v=>Math.abs(v.net)));
+      posEl.innerHTML = POSITIONS.filter(p=>byPos[p]).map(p=>{
+        const v = byPos[p];
+        const pct = Math.round(100*Math.abs(v.net)/maxAbs);
+        const color = v.net>=0 ? 'var(--win)' : 'var(--loss)';
+        return `<div class="pos-bar-row">
+          <div class="pos-bar-label">${p}</div>
+          <div class="pos-bar-track"><div class="pos-bar-fill" style="width:${pct}%; background:${color};"></div></div>
+          <div class="pos-bar-val" style="color:${color};">${v.net>=0?'+':'-'}$${Math.abs(v.net).toFixed(0)}</div>
+        </div>`;
+      }).join('');
+    }
+
+    const sdGrid = document.getElementById('stat-grid-showdown');
+    const sdHands = hands.filter(h=>h.showdown);
+    const sdWinPct = sdHands.length ? Math.round(100*sdHands.filter(h=>h.net>0).length/sdHands.length) : 0;
+    sdGrid.innerHTML =
+      statTile(sdHands.length, 'Times to Showdown') +
+      statTile(sdHands.length? sdWinPct+'%' : '—', 'Won at Showdown');
+  }
+
+  // ---------------- tabs ----------------
+  function switchView(name){
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById('view-'+name).classList.add('active');
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
+  }
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    b.addEventListener('click', ()=>switchView(b.dataset.view));
+  });
+
+  // ---------------- init ----------------
+  renderAll();
+  loadHands();
+
+})();
+</script>
+</body>
+</html>
