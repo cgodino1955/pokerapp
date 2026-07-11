@@ -384,8 +384,13 @@
       <div class="card-block">
         <label class="field-label">Your Action</label>
         <div class="chip-row" id="preflop-action-chips"></div>
+        <div id="preflop-call-wrap" style="display:none;">
+          <label class="field-label" id="preflop-call-label">Call Amount</label>
+          <input type="number" id="preflop-call-amount" inputmode="decimal">
+        </div>
         <div id="preflop-raise-wrap" style="display:none;">
           <label class="field-label">Raise To</label>
+          <div class="chip-row" id="preflop-raise-chips"></div>
           <input type="number" id="preflop-raise-amount" inputmode="decimal">
         </div>
       </div>
@@ -404,6 +409,7 @@
           </div>
           <div id="flop-raise-wrap" style="display:none;">
             <label class="field-label">Raise To</label>
+            <div class="chip-row" id="flop-raise-chips"></div>
             <input type="number" id="flop-raise-amount" inputmode="decimal">
           </div>
         </div>
@@ -423,6 +429,7 @@
           </div>
           <div id="turn-raise-wrap" style="display:none;">
             <label class="field-label">Raise To</label>
+            <div class="chip-row" id="turn-raise-chips"></div>
             <input type="number" id="turn-raise-amount" inputmode="decimal">
           </div>
         </div>
@@ -442,6 +449,7 @@
           </div>
           <div id="river-raise-wrap" style="display:none;">
             <label class="field-label">Raise To</label>
+            <div class="chip-row" id="river-raise-chips"></div>
             <input type="number" id="river-raise-amount" inputmode="decimal">
           </div>
         </div>
@@ -594,6 +602,7 @@
     document.getElementById('flop-raise-amount').value='';
     document.getElementById('turn-raise-amount').value='';
     document.getElementById('river-raise-amount').value='';
+    document.getElementById('preflop-call-amount').value='';
     document.getElementById('flop-call-amount').value='';
     document.getElementById('turn-call-amount').value='';
     document.getElementById('river-call-amount').value='';
@@ -709,15 +718,19 @@
       const v = document.getElementById(street+'-raise-amount').value;
       return v !== '' ? v : state.bb;
     }
-    if(street === 'preflop') return state.bb; // calling preflop = exactly the big blind
+    // Bet or Call — read from that street's own amount input. Preflop calls
+    // aren't always just the big blind (you might be calling a 3-bet), so
+    // it gets an editable field too, same as the postflop streets.
     const v = document.getElementById(street+'-call-amount').value;
     return v !== '' ? v : state.bb;
   }
 
   // What a street's Call/Bet amount should default to: the previous street's
   // resolved amount (so a call carries forward the last raise size), falling
-  // back to the big blind if nothing was raised yet.
+  // back to the big blind if nothing was raised yet. Preflop has no prior
+  // street, so it just defaults to the big blind.
   function defaultCallAmount(street){
+    if(street === 'preflop') return state.bb || '';
     const prevStreet = {flop:'preflop', turn:'flop', river:'turn'}[street];
     const prevAction = {preflop:state.preflopAction, flop:state.flopAction, turn:state.turnAction}[prevStreet];
     return streetAmount(prevStreet, prevAction) || state.bb || '';
@@ -738,14 +751,36 @@
   }
 
   // ---------------- raise input helper ----------------
-  // Raise lets you specify the size, defaulting to the current big blind
+  // Raise lets you specify the size, defaulting to a 2x-big-blind min-raise
   // the first time it's shown (won't clobber a value you've already typed).
+  // Quick-select chips in big-blind increments (2x-6x) sit above the manual
+  // input, and the input itself steps by one big blind.
+  const RAISE_BB_MULTIPLES = [2, 3, 4, 5, 6];
+  function buildRaiseChips(street){
+    const chipsEl = document.getElementById(street+'-raise-chips');
+    const input = document.getElementById(street+'-raise-amount');
+    const bb = parseFloat(state.bb);
+    chipsEl.innerHTML = '';
+    if(!bb) return;
+    const current = parseFloat(input.value);
+    RAISE_BB_MULTIPLES.forEach(m=>{
+      const val = bb * m;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip' + (current === val ? ' selected' : '');
+      b.textContent = m + 'x ($' + val + ')';
+      b.addEventListener('click', ()=>{ input.value = val; renderAll(); });
+      chipsEl.appendChild(b);
+    });
+  }
   function updateRaiseInput(street, action){
     const wrap = document.getElementById(street+'-raise-wrap');
     const input = document.getElementById(street+'-raise-amount');
     if(action === 'Raise'){
       wrap.style.display = 'block';
-      if(!input.value && state.bb){ input.value = state.bb; }
+      if(state.bb){ input.step = state.bb; }
+      if(!input.value && state.bb){ input.value = state.bb * 2; }
+      buildRaiseChips(street);
     } else {
       wrap.style.display = 'none';
     }
@@ -797,6 +832,7 @@
       state.preflopAction = v;
       if(v==='Fold'){ state.flop=[null,null,null]; state.flopAction=null; state.turn=[null]; state.turnAction=null; state.river=[null]; state.riverAction=null; }
     });
+    updateCallAmountInput('preflop', state.preflopAction);
     updateRaiseInput('preflop', state.preflopAction);
 
     const playedPreflop = state.preflopAction && state.preflopAction !== 'Fold';
