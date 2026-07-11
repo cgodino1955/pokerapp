@@ -246,12 +246,6 @@
     color:var(--gold);
     margin-top:2px;
   }
-  .amount-note{
-    font-family:'JetBrains Mono', monospace;
-    font-size:12px;
-    color:var(--cream-dim);
-    margin-top:8px;
-  }
   .card-warn{
     font-family:'JetBrains Mono', monospace;
     font-size:12px;
@@ -404,7 +398,10 @@
           <div class="pick-hint" id="flop-hint" style="display:none;"></div>
           <label class="field-label" style="margin-top:10px;" id="flop-action-label">Your Action</label>
           <div class="chip-row" id="flop-action-chips"></div>
-          <div class="amount-note" id="flop-amount-note" style="display:none;"></div>
+          <div id="flop-call-wrap" style="display:none;">
+            <label class="field-label" id="flop-call-label">Amount</label>
+            <input type="number" id="flop-call-amount" inputmode="decimal">
+          </div>
           <div id="flop-raise-wrap" style="display:none;">
             <label class="field-label">Raise To</label>
             <input type="number" id="flop-raise-amount" inputmode="decimal">
@@ -420,7 +417,10 @@
           <div class="pick-hint" id="turn-hint" style="display:none;"></div>
           <label class="field-label" style="margin-top:10px;" id="turn-action-label">Your Action</label>
           <div class="chip-row" id="turn-action-chips"></div>
-          <div class="amount-note" id="turn-amount-note" style="display:none;"></div>
+          <div id="turn-call-wrap" style="display:none;">
+            <label class="field-label" id="turn-call-label">Amount</label>
+            <input type="number" id="turn-call-amount" inputmode="decimal">
+          </div>
           <div id="turn-raise-wrap" style="display:none;">
             <label class="field-label">Raise To</label>
             <input type="number" id="turn-raise-amount" inputmode="decimal">
@@ -436,7 +436,10 @@
           <div class="pick-hint" id="river-hint" style="display:none;"></div>
           <label class="field-label" style="margin-top:10px;" id="river-action-label">Your Action</label>
           <div class="chip-row" id="river-action-chips"></div>
-          <div class="amount-note" id="river-amount-note" style="display:none;"></div>
+          <div id="river-call-wrap" style="display:none;">
+            <label class="field-label" id="river-call-label">Amount</label>
+            <input type="number" id="river-call-amount" inputmode="decimal">
+          </div>
           <div id="river-raise-wrap" style="display:none;">
             <label class="field-label">Raise To</label>
             <input type="number" id="river-raise-amount" inputmode="decimal">
@@ -591,6 +594,9 @@
     document.getElementById('flop-raise-amount').value='';
     document.getElementById('turn-raise-amount').value='';
     document.getElementById('river-raise-amount').value='';
+    document.getElementById('flop-call-amount').value='';
+    document.getElementById('turn-call-amount').value='';
+    document.getElementById('river-call-amount').value='';
     renderAll();
   }
 
@@ -693,16 +699,41 @@
     pickerEl.appendChild(warnEl);
   }
 
-  // ---------------- amount note helper ----------------
-  // Postflop Bet/Call isn't tracked in dollars — it's simply tagged at the
-  // hand's big blind so there's nothing to type. Raise gets its own input below.
-  function updateAmountNote(street, action){
-    const note = document.getElementById(street+'-amount-note');
-    if(action && action !== 'Fold' && action !== 'Check' && action !== 'Raise' && state.bb){
-      note.style.display = 'block';
-      note.textContent = 'Logged at the big blind: $' + state.bb;
+  // ---------------- amount resolution ----------------
+  // The dollar amount tied to a given street's action: the raise-to size for
+  // Raise, the bet/call size for Bet/Call (read from that street's amount
+  // input, defaulting to the big blind), or null for Fold/Check.
+  function streetAmount(street, action){
+    if(!action || action === 'Fold' || action === 'Check') return null;
+    if(action === 'Raise'){
+      const v = document.getElementById(street+'-raise-amount').value;
+      return v !== '' ? v : state.bb;
+    }
+    if(street === 'preflop') return state.bb; // calling preflop = exactly the big blind
+    const v = document.getElementById(street+'-call-amount').value;
+    return v !== '' ? v : state.bb;
+  }
+
+  // What a street's Call/Bet amount should default to: the previous street's
+  // resolved amount (so a call carries forward the last raise size), falling
+  // back to the big blind if nothing was raised yet.
+  function defaultCallAmount(street){
+    const prevStreet = {flop:'preflop', turn:'flop', river:'turn'}[street];
+    const prevAction = {preflop:state.preflopAction, flop:state.flopAction, turn:state.turnAction}[prevStreet];
+    return streetAmount(prevStreet, prevAction) || state.bb || '';
+  }
+
+  // ---------------- call/bet amount input helper ----------------
+  function updateCallAmountInput(street, action){
+    const wrap = document.getElementById(street+'-call-wrap');
+    const input = document.getElementById(street+'-call-amount');
+    const label = document.getElementById(street+'-call-label');
+    if(action === 'Bet' || action === 'Call'){
+      wrap.style.display = 'block';
+      label.textContent = action === 'Bet' ? 'Bet Amount' : 'Call Amount';
+      if(!input.value){ input.value = defaultCallAmount(street); }
     } else {
-      note.style.display = 'none';
+      wrap.style.display = 'none';
     }
   }
 
@@ -783,7 +814,7 @@
       } else if(state.flopAction){
         state.flopAction = null; // cards were cleared after an action was set; reset so flow stays consistent
       }
-      updateAmountNote('flop', flopCardsDone ? state.flopAction : null);
+      updateCallAmountInput('flop', flopCardsDone ? state.flopAction : null);
       updateRaiseInput('flop', flopCardsDone ? state.flopAction : null);
     }
 
@@ -801,7 +832,7 @@
       } else if(state.turnAction){
         state.turnAction = null;
       }
-      updateAmountNote('turn', turnCardDone ? state.turnAction : null);
+      updateCallAmountInput('turn', turnCardDone ? state.turnAction : null);
       updateRaiseInput('turn', turnCardDone ? state.turnAction : null);
     }
 
@@ -816,7 +847,7 @@
       } else if(state.riverAction){
         state.riverAction = null;
       }
-      updateAmountNote('river', riverCardDone ? state.riverAction : null);
+      updateCallAmountInput('river', riverCardDone ? state.riverAction : null);
       updateRaiseInput('river', riverCardDone ? state.riverAction : null);
     }
 
@@ -848,15 +879,6 @@
       alert('Please set position, both hole cards, a preflop action, and the net result before saving.');
       return;
     }
-
-    const streetAmount = (street, action) => {
-      if(action === 'Raise'){
-        const v = document.getElementById(street+'-raise-amount').value;
-        return v !== '' ? v : state.bb;
-      }
-      if(action && action !== 'Fold' && action !== 'Check') return state.bb;
-      return null;
-    };
 
     const hand = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
