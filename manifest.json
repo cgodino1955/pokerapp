@@ -1,6 +1,6 @@
 {
-  "name": "The Ledger — Home Game Tracker",
-  "short_name": "The Ledger",
+  "name": "Poker Hand Tracker",
+  "short_name": "Hand Tracker",
   "description": "Track your poker hands, hand histories, and session stats.",
   "id": "./index.html",
   "start_url": "./index.html",
