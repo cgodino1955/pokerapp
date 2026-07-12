@@ -111,7 +111,7 @@
     font-size:13px; color:var(--cream-dim); line-height:1.5;
     margin:0 0 20px;
   }
-  .auth-card input[type=email]{ margin-bottom:12px; }
+  .auth-card input[type=email], .auth-card input[type=password]{ margin-bottom:12px; }
   .auth-status{
     margin-top:14px; font-size:12px; color:var(--cream-dim);
     font-family:'JetBrains Mono', monospace; min-height:16px;
@@ -169,7 +169,7 @@
     font-weight:600;
   }
 
-  input[type=number], input[type=text], input[type=email]{
+  input[type=number], input[type=text], input[type=email], input[type=password]{
     width:100%;
     background:rgba(0,0,0,0.2);
     border:1px solid var(--line-strong);
@@ -386,9 +386,11 @@
 <div id="auth-gate" class="auth-gate">
   <div class="auth-card">
     <div class="brand">Poker Hand Tracker <span class="suits">♠ ♥ ♦ ♣</span></div>
-    <p class="auth-sub">Sign in with your email — we'll send you a one-time link, no password needed.</p>
+    <p class="auth-sub">Sign in to your account.</p>
     <input type="email" id="auth-email" placeholder="you@example.com" inputmode="email" autocomplete="email">
-    <button class="save-btn" id="auth-send-btn" type="button">Send Magic Link</button>
+    <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password">
+    <button class="save-btn" id="auth-login-btn" type="button">Log In</button>
+    <button class="logout-btn" id="auth-signup-btn" type="button" style="width:100%; margin-top:10px; padding:10px;">First time? Create account</button>
     <div class="auth-status" id="auth-status"></div>
   </div>
 </div>
@@ -607,23 +609,46 @@
     document.getElementById('app').style.display = 'flex';
   }
 
-  document.getElementById('auth-send-btn').addEventListener('click', async ()=>{
-    const email = document.getElementById('auth-email').value.trim();
+  function authFormValues(){
+    return {
+      email: document.getElementById('auth-email').value.trim(),
+      password: document.getElementById('auth-password').value,
+    };
+  }
+
+  document.getElementById('auth-login-btn').addEventListener('click', async ()=>{
+    const { email, password } = authFormValues();
     const statusEl = document.getElementById('auth-status');
     statusEl.className = 'auth-status';
-    if(!email){ statusEl.textContent = 'Enter your email first.'; return; }
-    statusEl.textContent = 'Sending…';
-    const { error } = await supabaseClient.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin + window.location.pathname }
-    });
+    if(!email || !password){ statusEl.textContent = 'Enter your email and password.'; return; }
+    statusEl.textContent = 'Logging in…';
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if(error){
       statusEl.textContent = 'Error: ' + error.message;
       statusEl.className = 'auth-status error';
-    } else {
-      statusEl.textContent = 'Check your email for a login link.';
-      statusEl.className = 'auth-status ok';
     }
+    // On success, onAuthStateChange fires and swaps to the app — nothing more to do here.
+  });
+
+  document.getElementById('auth-signup-btn').addEventListener('click', async ()=>{
+    const { email, password } = authFormValues();
+    const statusEl = document.getElementById('auth-status');
+    statusEl.className = 'auth-status';
+    if(!email || !password){ statusEl.textContent = 'Enter your email and password.'; return; }
+    if(password.length < 6){ statusEl.textContent = 'Password must be at least 6 characters.'; return; }
+    statusEl.textContent = 'Creating account…';
+    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+    if(error){
+      statusEl.textContent = 'Error: ' + error.message;
+      statusEl.className = 'auth-status error';
+    } else if(!data.session){
+      // Account created but "Confirm email" is still on in Supabase, so no
+      // session yet — that path depends on email delivery, which is what
+      // we're avoiding. Turn it off: Authentication > Providers > Email.
+      statusEl.textContent = 'Account created, but email confirmation is still required — turn off "Confirm email" in Supabase (Authentication > Providers > Email), then log in above.';
+      statusEl.className = 'auth-status error';
+    }
+    // If a session came back immediately, onAuthStateChange fires and swaps to the app.
   });
 
   document.getElementById('logout-btn').addEventListener('click', async ()=>{
