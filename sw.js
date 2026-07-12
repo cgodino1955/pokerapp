@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ledger-cache-v1';
+const CACHE_NAME = 'ledger-cache-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -25,8 +25,12 @@ self.addEventListener('activate', (event) => {
 });
 
 // Stale-while-revalidate: serve from cache instantly, refresh in the background.
+// Only the same-origin app shell is cached — cross-origin requests (Supabase
+// auth/data calls) pass straight through to the network untouched, since
+// they're per-user and shouldn't be cached or served stale/offline.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  if (new URL(event.request.url).origin !== self.location.origin) return;
 
   event.respondWith(
     caches.match(event.request).then((cached) => {

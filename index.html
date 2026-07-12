@@ -59,6 +59,7 @@
     background:linear-gradient(180deg, var(--felt-dark) 0%, rgba(18,42,34,0.96) 80%, rgba(18,42,34,0.85) 100%);
     backdrop-filter: blur(6px);
   }
+  .header-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .brand{
     font-family:'Roboto Slab', serif;
     font-weight:700;
@@ -67,6 +68,17 @@
     display:flex; align-items:baseline; gap:8px;
   }
   .brand .suits{ color:var(--gold); font-size:15px; letter-spacing:2px; }
+  .logout-btn{
+    background:none;
+    border:1px solid var(--line-strong);
+    border-radius:6px;
+    color:var(--cream-dim);
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    padding:6px 10px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
   .session-line{
     margin-top:6px;
     font-family:'JetBrains Mono', monospace;
@@ -78,6 +90,34 @@
   .session-line .net.neg{ color:var(--loss); }
 
   main{ flex:1; padding:18px 16px 100px; }
+
+  /* ---------- Auth gate ---------- */
+  .auth-gate{
+    position:fixed; inset:0; z-index:50;
+    display:flex; align-items:center; justify-content:center;
+    background: radial-gradient(120% 140% at 50% -10%, var(--felt-light) 0%, var(--felt) 45%, var(--felt-dark) 100%);
+    padding:24px;
+  }
+  .auth-card{
+    width:100%; max-width:360px;
+    background: rgba(239,231,214,0.05);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:28px 22px;
+    text-align:center;
+  }
+  .auth-card .brand{ justify-content:center; margin-bottom:10px; }
+  .auth-sub{
+    font-size:13px; color:var(--cream-dim); line-height:1.5;
+    margin:0 0 20px;
+  }
+  .auth-card input[type=email]{ margin-bottom:12px; }
+  .auth-status{
+    margin-top:14px; font-size:12px; color:var(--cream-dim);
+    font-family:'JetBrains Mono', monospace; min-height:16px;
+  }
+  .auth-status.error{ color:var(--loss); }
+  .auth-status.ok{ color:var(--win); }
 
   h2.section-title{
     font-family:'Roboto Slab', serif;
@@ -129,7 +169,7 @@
     font-weight:600;
   }
 
-  input[type=number], input[type=text]{
+  input[type=number], input[type=text], input[type=email]{
     width:100%;
     background:rgba(0,0,0,0.2);
     border:1px solid var(--line-strong);
@@ -342,10 +382,24 @@
 </style>
 </head>
 <body>
-<div id="app">
+
+<div id="auth-gate" class="auth-gate">
+  <div class="auth-card">
+    <div class="brand">Poker Hand Tracker <span class="suits">♠ ♥ ♦ ♣</span></div>
+    <p class="auth-sub">Sign in with your email — we'll send you a one-time link, no password needed.</p>
+    <input type="email" id="auth-email" placeholder="you@example.com" inputmode="email" autocomplete="email">
+    <button class="save-btn" id="auth-send-btn" type="button">Send Magic Link</button>
+    <div class="auth-status" id="auth-status"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
 
   <header>
-    <div class="brand">Poker Hand Tracker <span class="suits">♠ ♥ ♦ ♣</span></div>
+    <div class="header-top">
+      <div class="brand">Poker Hand Tracker <span class="suits">♠ ♥ ♦ ♣</span></div>
+      <button class="logout-btn" id="logout-btn" type="button">Log Out</button>
+    </div>
     <div class="session-line">
       <span id="hand-count">0 hands logged</span>
       <span id="session-net" class="net">—</span>
@@ -503,23 +557,31 @@
 </div>
 
 <script>
-  // Persists hand history to localStorage. Keeps the same shape as the
-  // sandboxed window.storage API this app was originally written against.
-  if(!window.storage){
-    window.storage = {
-      async get(key){ return { value: localStorage.getItem(key) }; },
-      async set(key, value){ localStorage.setItem(key, value); },
-    };
-  }
-
   if('serviceWorker' in navigator){
     window.addEventListener('load', ()=>{
       navigator.serviceWorker.register('sw.js').catch(err=>console.error('SW registration failed', err));
     });
   }
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
+
+  // ---------------- Supabase config ----------------
+  // Public project URL + anon key — safe to expose client-side, access to
+  // the `hands` table is enforced by Postgres row-level security policies
+  // (see supabase-schema.sql), not by keeping this key secret.
+  const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+  const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+  if(SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY'){
+    document.getElementById('auth-gate').innerHTML =
+      '<div class="auth-card"><div class="brand">Poker Hand Tracker <span class="suits">♠ ♥ ♦ ♣</span></div>' +
+      '<p class="auth-sub">Not connected to a database yet — set SUPABASE_URL and SUPABASE_ANON_KEY near the top of the script in index.html.</p></div>';
+    throw new Error('Supabase not configured — set SUPABASE_URL and SUPABASE_ANON_KEY in index.html');
+  }
+
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   const RANKS = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
   const SUITS = [
@@ -534,27 +596,63 @@
   const BLIND_PRESETS = ['10/20','25/50','50/100','100/200','200/400','500/1000','1000/2000','Custom'];
 
   let hands = [];
-  let storageReady = false;
 
-  // ---------------- storage ----------------
-  async function loadHands(){
-    try{
-      const res = await window.storage.get('poker-hands', false);
-      hands = res && res.value ? JSON.parse(res.value) : [];
-    }catch(e){
-      hands = [];
+  // ---------------- auth ----------------
+  function showAuthGate(){
+    document.getElementById('auth-gate').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+  function showApp(){
+    document.getElementById('auth-gate').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+  }
+
+  document.getElementById('auth-send-btn').addEventListener('click', async ()=>{
+    const email = document.getElementById('auth-email').value.trim();
+    const statusEl = document.getElementById('auth-status');
+    statusEl.className = 'auth-status';
+    if(!email){ statusEl.textContent = 'Enter your email first.'; return; }
+    statusEl.textContent = 'Sending…';
+    const { error } = await supabaseClient.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin + window.location.pathname }
+    });
+    if(error){
+      statusEl.textContent = 'Error: ' + error.message;
+      statusEl.className = 'auth-status error';
+    } else {
+      statusEl.textContent = 'Check your email for a login link.';
+      statusEl.className = 'auth-status ok';
     }
-    storageReady = true;
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', async ()=>{
+    await supabaseClient.auth.signOut();
+  });
+
+  supabaseClient.auth.onAuthStateChange((event, session)=>{
+    if(session){
+      showApp();
+      loadHands();
+    } else {
+      hands = [];
+      showAuthGate();
+    }
+  });
+
+  // ---------------- storage (Supabase) ----------------
+  // Each row is private to the signed-in user via row-level security, so no
+  // client-side filtering by user is needed — the query only ever returns
+  // the caller's own hands.
+  async function loadHands(){
+    const { data, error } = await supabaseClient
+      .from('hands')
+      .select('*')
+      .order('ts', { ascending: false });
+    hands = error ? [] : data;
     renderHistory();
     renderStats();
     updateHeader();
-  }
-  async function saveHands(){
-    try{
-      await window.storage.set('poker-hands', JSON.stringify(hands), false);
-    }catch(e){
-      console.error('storage save failed', e);
-    }
   }
 
   // ---------------- state for the in-progress form ----------------
@@ -914,7 +1012,6 @@
     }
 
     const hand = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
       ts: Date.now(),
       position: state.position,
       sb: state.sb, bb: state.bb,
@@ -928,8 +1025,12 @@
       notes: notes || '',
     };
 
-    hands.unshift(hand);
-    await saveHands();
+    const { data, error } = await supabaseClient.from('hands').insert(hand).select().single();
+    if(error){
+      alert('Could not save hand: ' + error.message);
+      return;
+    }
+    hands.unshift(data);
     resetState();
     updateHeader();
     renderHistory();
@@ -997,8 +1098,12 @@
       row.querySelector('.del-btn').addEventListener('click', async (e)=>{
         e.stopPropagation();
         if(!confirm('Delete this hand?')) return;
+        const { error } = await supabaseClient.from('hands').delete().eq('id', h.id);
+        if(error){
+          alert('Could not delete hand: ' + error.message);
+          return;
+        }
         hands = hands.filter(x=>x.id !== h.id);
-        await saveHands();
         updateHeader();
         renderHistory();
         renderStats();
@@ -1070,8 +1175,9 @@
   });
 
   // ---------------- init ----------------
+  // Hand data loads once onAuthStateChange reports a session (fires
+  // immediately with the current session on page load, including none).
   renderAll();
-  loadHands();
 
 })();
 </script>
