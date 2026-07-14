@@ -1286,6 +1286,19 @@
     b.addEventListener('click', ()=>switchView(b.dataset.view));
   });
 
+  // Custom blinds bypass the preset chips, so state.sb/bb need to update
+  // live as the user types — otherwise the raise quick-select chips (which
+  // read state.bb) never pick up a custom big blind until save time.
+  ['sb-input','bb-input'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', ()=>{
+      if(state.blindChoice === 'Custom'){
+        state.sb = document.getElementById('sb-input').value;
+        state.bb = document.getElementById('bb-input').value;
+        renderAll();
+      }
+    });
+  });
+
   // ---------------- init ----------------
   // Hand data loads once onAuthStateChange reports a session (fires
   // immediately with the current session on page load, including none).
