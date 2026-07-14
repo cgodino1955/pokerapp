@@ -460,6 +460,7 @@
         <div class="chip-row" id="preflop-action-chips"></div>
         <div id="preflop-call-wrap" style="display:none;">
           <label class="field-label" id="preflop-call-label">Call Amount</label>
+          <div class="chip-row" id="preflop-call-chips"></div>
           <input type="number" id="preflop-call-amount" inputmode="decimal">
         </div>
         <div id="preflop-raise-wrap" style="display:none;">
@@ -479,6 +480,7 @@
           <div class="chip-row" id="flop-action-chips"></div>
           <div id="flop-call-wrap" style="display:none;">
             <label class="field-label" id="flop-call-label">Amount</label>
+            <div class="chip-row" id="flop-call-chips"></div>
             <input type="number" id="flop-call-amount" inputmode="decimal">
           </div>
           <div id="flop-raise-wrap" style="display:none;">
@@ -499,6 +501,7 @@
           <div class="chip-row" id="turn-action-chips"></div>
           <div id="turn-call-wrap" style="display:none;">
             <label class="field-label" id="turn-call-label">Amount</label>
+            <div class="chip-row" id="turn-call-chips"></div>
             <input type="number" id="turn-call-amount" inputmode="decimal">
           </div>
           <div id="turn-raise-wrap" style="display:none;">
@@ -519,6 +522,7 @@
           <div class="chip-row" id="river-action-chips"></div>
           <div id="river-call-wrap" style="display:none;">
             <label class="field-label" id="river-call-label">Amount</label>
+            <div class="chip-row" id="river-call-chips"></div>
             <input type="number" id="river-call-amount" inputmode="decimal">
           </div>
           <div id="river-raise-wrap" style="display:none;">
@@ -930,34 +934,19 @@
     return streetAmount(prevStreet, prevAction) || state.bb || '';
   }
 
-  // ---------------- call/bet amount input helper ----------------
-  function updateCallAmountInput(street, action){
-    const wrap = document.getElementById(street+'-call-wrap');
-    const input = document.getElementById(street+'-call-amount');
-    const label = document.getElementById(street+'-call-label');
-    if(action === 'Bet' || action === 'Call'){
-      wrap.style.display = 'block';
-      label.textContent = action === 'Bet' ? 'Bet Amount' : 'Call Amount';
-      if(!input.value){ input.value = defaultCallAmount(street); }
-    } else {
-      wrap.style.display = 'none';
-    }
-  }
-
-  // ---------------- raise input helper ----------------
-  // Raise lets you specify the size, defaulting to a 2x-big-blind min-raise
-  // the first time it's shown (won't clobber a value you've already typed).
-  // Quick-select chips in big-blind increments (2x-6x) sit above the manual
-  // input, and the input itself steps by one big blind.
-  const RAISE_BB_MULTIPLES = [2, 3, 4, 5, 6];
-  function buildRaiseChips(street){
-    const chipsEl = document.getElementById(street+'-raise-chips');
-    const input = document.getElementById(street+'-raise-amount');
+  // ---------------- BB-multiple quick-select chips ----------------
+  // Shared by both the raise and the call/bet amount inputs: a row of
+  // chips at common big-blind multiples (2x-6x) so you rarely have to
+  // type a number by hand. Clicking one just sets the paired input's value.
+  const BB_MULTIPLES = [2, 3, 4, 5, 6];
+  function buildBBMultipleChips(chipsContainerId, inputId){
+    const chipsEl = document.getElementById(chipsContainerId);
+    const input = document.getElementById(inputId);
     const bb = parseFloat(state.bb);
     chipsEl.innerHTML = '';
     if(!bb) return;
     const current = parseFloat(input.value);
-    RAISE_BB_MULTIPLES.forEach(m=>{
+    BB_MULTIPLES.forEach(m=>{
       const val = bb * m;
       const b = document.createElement('button');
       b.type = 'button';
@@ -967,6 +956,26 @@
       chipsEl.appendChild(b);
     });
   }
+
+  // ---------------- call/bet amount input helper ----------------
+  function updateCallAmountInput(street, action){
+    const wrap = document.getElementById(street+'-call-wrap');
+    const input = document.getElementById(street+'-call-amount');
+    const label = document.getElementById(street+'-call-label');
+    if(action === 'Bet' || action === 'Call'){
+      wrap.style.display = 'block';
+      label.textContent = action === 'Bet' ? 'Bet Amount' : 'Call Amount';
+      if(!input.value){ input.value = defaultCallAmount(street); }
+      buildBBMultipleChips(street+'-call-chips', street+'-call-amount');
+    } else {
+      wrap.style.display = 'none';
+    }
+  }
+
+  // ---------------- raise input helper ----------------
+  // Raise lets you specify the size, defaulting to a 2x-big-blind min-raise
+  // the first time it's shown (won't clobber a value you've already typed).
+  // The input itself also steps by one big blind.
   function updateRaiseInput(street, action){
     const wrap = document.getElementById(street+'-raise-wrap');
     const input = document.getElementById(street+'-raise-amount');
@@ -974,7 +983,7 @@
       wrap.style.display = 'block';
       if(state.bb){ input.step = state.bb; }
       if(!input.value && state.bb){ input.value = state.bb * 2; }
-      buildRaiseChips(street);
+      buildBBMultipleChips(street+'-raise-chips', street+'-raise-amount');
     } else {
       wrap.style.display = 'none';
     }
