@@ -59,7 +59,6 @@
     background:linear-gradient(180deg, var(--felt-dark) 0%, rgba(18,42,34,0.96) 80%, rgba(18,42,34,0.85) 100%);
     backdrop-filter: blur(6px);
   }
-  .header-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .brand{
     font-family:'Roboto Slab', serif;
     font-weight:700;
@@ -68,17 +67,6 @@
     display:flex; align-items:baseline; gap:8px;
   }
   .brand .suits{ color:var(--gold); font-size:15px; letter-spacing:2px; }
-  .logout-btn{
-    background:none;
-    border:1px solid var(--line-strong);
-    border-radius:6px;
-    color:var(--cream-dim);
-    font-family:'JetBrains Mono', monospace;
-    font-size:11px;
-    padding:6px 10px;
-    cursor:pointer;
-    flex-shrink:0;
-  }
   .session-line{
     margin-top:6px;
     font-family:'JetBrains Mono', monospace;
@@ -89,7 +77,47 @@
   .session-line .net.pos{ color:var(--win); }
   .session-line .net.neg{ color:var(--loss); }
 
+  .night-bar{
+    margin-top:10px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 12px;
+    background:rgba(201,162,39,0.08);
+    border:1px solid var(--line-strong);
+    border-radius:8px;
+  }
+  .night-status{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--cream-dim);
+  }
+  .night-status.live{ color:var(--gold); }
+  .night-btn{
+    flex-shrink:0;
+    padding:8px 14px;
+    border-radius:7px;
+    border:1px solid var(--gold);
+    background:transparent;
+    color:var(--gold);
+    font-family:'JetBrains Mono', monospace;
+    font-weight:600;
+    font-size:12px;
+    cursor:pointer;
+  }
+  .night-btn.end{ border-color:var(--loss); color:var(--loss); }
+
   main{ flex:1; padding:18px 16px 100px; }
+
+  select{
+    width:100%;
+    background:rgba(0,0,0,0.2);
+    border:1px solid var(--line-strong);
+    border-radius:8px;
+    padding:10px 12px;
+    color:var(--cream);
+    font-family:'JetBrains Mono', monospace;
+    font-size:14px;
+    margin-bottom:16px;
+  }
 
   /* ---------- Auth gate ---------- */
   .auth-gate{
@@ -109,15 +137,8 @@
   .auth-card .brand{ justify-content:center; margin-bottom:10px; }
   .auth-sub{
     font-size:13px; color:var(--cream-dim); line-height:1.5;
-    margin:0 0 20px;
+    margin:0;
   }
-  .auth-card input[type=email], .auth-card input[type=password]{ margin-bottom:12px; }
-  .auth-status{
-    margin-top:14px; font-size:12px; color:var(--cream-dim);
-    font-family:'JetBrains Mono', monospace; min-height:16px;
-  }
-  .auth-status.error{ color:var(--loss); }
-  .auth-status.ok{ color:var(--win); }
 
   h2.section-title{
     font-family:'Roboto Slab', serif;
@@ -169,7 +190,7 @@
     font-weight:600;
   }
 
-  input[type=number], input[type=text], input[type=email], input[type=password]{
+  input[type=number], input[type=text]{
     width:100%;
     background:rgba(0,0,0,0.2);
     border:1px solid var(--line-strong);
@@ -386,25 +407,21 @@
 <div id="auth-gate" class="auth-gate">
   <div class="auth-card">
     <div class="brand">Poker Hand Tracker <span class="suits">♠ ♥ ♦ ♣</span></div>
-    <p class="auth-sub">Sign in to your account.</p>
-    <input type="email" id="auth-email" placeholder="you@example.com" inputmode="email" autocomplete="email">
-    <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password">
-    <button class="save-btn" id="auth-login-btn" type="button">Log In</button>
-    <button class="logout-btn" id="auth-signup-btn" type="button" style="width:100%; margin-top:10px; padding:10px;">First time? Create account</button>
-    <div class="auth-status" id="auth-status"></div>
+    <p class="auth-sub" id="auth-status">Setting up your session…</p>
   </div>
 </div>
 
 <div id="app" style="display:none;">
 
   <header>
-    <div class="header-top">
-      <div class="brand">Poker Hand Tracker <span class="suits">♠ ♥ ♦ ♣</span></div>
-      <button class="logout-btn" id="logout-btn" type="button">Log Out</button>
-    </div>
+    <div class="brand">Poker Hand Tracker <span class="suits">♠ ♥ ♦ ♣</span></div>
     <div class="session-line">
       <span id="hand-count">0 hands logged</span>
       <span id="session-net" class="net">—</span>
+    </div>
+    <div class="night-bar" id="night-bar">
+      <span class="night-status" id="night-status">No night in progress</span>
+      <button class="night-btn" id="night-toggle-btn" type="button">Start Night</button>
     </div>
   </header>
 
@@ -535,7 +552,10 @@
 
     <!-- ============ STATS VIEW ============ -->
     <section id="view-stats" class="view">
-      <h2 class="section-title">Session Overview</h2>
+      <label class="field-label">Viewing</label>
+      <select id="stats-session-select"></select>
+
+      <h2 class="section-title">Overview</h2>
       <div class="stat-grid" id="stat-grid-top"></div>
 
       <h2 class="section-title">Preflop Tendencies</h2>
@@ -598,6 +618,9 @@
   const BLIND_PRESETS = ['10/20','25/50','50/100','100/200','200/400','500/1000','1000/2000','Custom'];
 
   let hands = [];
+  let sessions = [];
+  let activeSession = null;
+  let statsSessionId = null; // null = not yet defaulted; 'all' or a session id after that
 
   // ---------------- auth ----------------
   function showAuthGate(){
@@ -609,75 +632,123 @@
     document.getElementById('app').style.display = 'flex';
   }
 
-  function authFormValues(){
-    return {
-      email: document.getElementById('auth-email').value.trim(),
-      password: document.getElementById('auth-password').value,
-    };
-  }
-
-  document.getElementById('auth-login-btn').addEventListener('click', async ()=>{
-    const { email, password } = authFormValues();
-    const statusEl = document.getElementById('auth-status');
-    statusEl.className = 'auth-status';
-    if(!email || !password){ statusEl.textContent = 'Enter your email and password.'; return; }
-    statusEl.textContent = 'Logging in…';
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    if(error){
-      statusEl.textContent = 'Error: ' + error.message;
-      statusEl.className = 'auth-status error';
-    }
-    // On success, onAuthStateChange fires and swaps to the app — nothing more to do here.
-  });
-
-  document.getElementById('auth-signup-btn').addEventListener('click', async ()=>{
-    const { email, password } = authFormValues();
-    const statusEl = document.getElementById('auth-status');
-    statusEl.className = 'auth-status';
-    if(!email || !password){ statusEl.textContent = 'Enter your email and password.'; return; }
-    if(password.length < 6){ statusEl.textContent = 'Password must be at least 6 characters.'; return; }
-    statusEl.textContent = 'Creating account…';
-    const { data, error } = await supabaseClient.auth.signUp({ email, password });
-    if(error){
-      statusEl.textContent = 'Error: ' + error.message;
-      statusEl.className = 'auth-status error';
-    } else if(!data.session){
-      // Account created but "Confirm email" is still on in Supabase, so no
-      // session yet — that path depends on email delivery, which is what
-      // we're avoiding. Turn it off: Authentication > Providers > Email.
-      statusEl.textContent = 'Account created, but email confirmation is still required — turn off "Confirm email" in Supabase (Authentication > Providers > Email), then log in above.';
-      statusEl.className = 'auth-status error';
-    }
-    // If a session came back immediately, onAuthStateChange fires and swaps to the app.
-  });
-
-  document.getElementById('logout-btn').addEventListener('click', async ()=>{
-    await supabaseClient.auth.signOut();
-  });
-
+  // No login form — a private, anonymous session is created automatically
+  // on first visit and persists in this browser (Supabase stores the
+  // session token in localStorage), so hands stay tied to this device
+  // without any email/password step. Clearing browser data starts a new,
+  // unrelated anonymous identity with no access to prior hands.
+  let anonSignInAttempted = false;
   supabaseClient.auth.onAuthStateChange((event, session)=>{
     if(session){
+      anonSignInAttempted = false;
       showApp();
-      loadHands();
-    } else {
-      hands = [];
+      loadAll();
+    } else if(!anonSignInAttempted){
+      anonSignInAttempted = true;
       showAuthGate();
+      supabaseClient.auth.signInAnonymously().then(({error})=>{
+        if(error){
+          document.getElementById('auth-status').textContent =
+            'Could not start a session: ' + error.message + '. Make sure "Allow anonymous sign-ins" is enabled in Supabase (Authentication > Providers).';
+        }
+      });
     }
   });
 
   // ---------------- storage (Supabase) ----------------
   // Each row is private to the signed-in user via row-level security, so no
   // client-side filtering by user is needed — the query only ever returns
-  // the caller's own hands.
-  async function loadHands(){
+  // the caller's own hands/sessions.
+  async function loadHandsData(){
     const { data, error } = await supabaseClient
       .from('hands')
       .select('*')
       .order('ts', { ascending: false });
     hands = error ? [] : data;
+  }
+  async function loadSessionsData(){
+    const { data, error } = await supabaseClient
+      .from('sessions')
+      .select('*')
+      .order('started_at', { ascending: false });
+    sessions = error ? [] : data;
+    activeSession = sessions.find(s=>!s.ended_at) || null;
+  }
+  async function loadAll(){
+    await Promise.all([loadHandsData(), loadSessionsData()]);
     renderHistory();
+    renderNightBar();
+    populateStatsSessionSelect();
     renderStats();
     updateHeader();
+  }
+
+  // ---------------- night (session) controls ----------------
+  // A "night" groups hands together so stats can be viewed per-session
+  // instead of only as one all-time lifetime aggregate. Hands can only be
+  // logged while a night is open, and only one night can be open at a time.
+  function renderNightBar(){
+    const statusEl = document.getElementById('night-status');
+    const btn = document.getElementById('night-toggle-btn');
+    if(activeSession){
+      const startedStr = new Date(activeSession.started_at).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+      const count = hands.filter(h=>h.session_id === activeSession.id).length;
+      statusEl.textContent = 'Night in progress · started ' + startedStr + ' · ' + count + (count===1?' hand':' hands');
+      statusEl.className = 'night-status live';
+      btn.textContent = 'End Night';
+      btn.className = 'night-btn end';
+    } else {
+      statusEl.textContent = 'No night in progress';
+      statusEl.className = 'night-status';
+      btn.textContent = 'Start Night';
+      btn.className = 'night-btn';
+    }
+  }
+
+  document.getElementById('night-toggle-btn').addEventListener('click', async ()=>{
+    if(activeSession){
+      if(!confirm('End tonight\'s session? You can start a new one any time.')) return;
+      const { error } = await supabaseClient.from('sessions').update({ ended_at: Date.now() }).eq('id', activeSession.id);
+      if(error){ alert('Could not end night: ' + error.message); return; }
+    } else {
+      const { error } = await supabaseClient.from('sessions').insert({ started_at: Date.now() });
+      if(error){ alert('Could not start night: ' + error.message); return; }
+    }
+    await loadSessionsData();
+    renderNightBar();
+    populateStatsSessionSelect();
+    renderStats();
+    updateHeader();
+  });
+
+  // ---------------- stats session picker ----------------
+  function populateStatsSessionSelect(){
+    const sel = document.getElementById('stats-session-select');
+    sel.innerHTML = '';
+    const allOpt = document.createElement('option');
+    allOpt.value = 'all';
+    allOpt.textContent = 'All Time';
+    sel.appendChild(allOpt);
+    sessions.forEach(s=>{
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      const d = new Date(s.started_at);
+      const dateStr = d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+      const timeStr = d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+      opt.textContent = dateStr + ' ' + timeStr + (s.ended_at ? '' : ' (in progress)');
+      sel.appendChild(opt);
+    });
+    if(statsSessionId === null){
+      statsSessionId = activeSession ? activeSession.id : 'all';
+    }
+    sel.value = statsSessionId;
+  }
+  document.getElementById('stats-session-select').addEventListener('change', (e)=>{
+    statsSessionId = e.target.value;
+    renderStats();
+  });
+  function handsForStatsSelection(){
+    return statsSessionId === 'all' ? hands : hands.filter(h=>h.session_id === statsSessionId);
   }
 
   // ---------------- state for the in-progress form ----------------
@@ -1035,8 +1106,13 @@
       alert('Please set position, both hole cards, a preflop action, and the result before saving.');
       return;
     }
+    if(!activeSession){
+      alert('Start tonight\'s session before logging a hand — use the "Start Night" button up top.');
+      return;
+    }
 
     const hand = {
+      session_id: activeSession.id,
       ts: Date.now(),
       position: state.position,
       sb: state.sb, bb: state.bb,
@@ -1058,16 +1134,23 @@
     hands.unshift(data);
     resetState();
     updateHeader();
+    renderNightBar();
     renderHistory();
     renderStats();
     switchView('history');
   });
 
   // ---------------- header ----------------
+  // While a night is open, the header reflects that night's hands so far
+  // (the number that actually matters while you're at the table). With no
+  // night open, it falls back to your lifetime total.
   function updateHeader(){
-    document.getElementById('hand-count').textContent = hands.length + (hands.length===1?' hand logged':' hands logged');
+    const scoped = activeSession ? hands.filter(h=>h.session_id === activeSession.id) : hands;
+    document.getElementById('hand-count').textContent = activeSession
+      ? scoped.length + (scoped.length===1?' hand this night':' hands this night')
+      : hands.length + (hands.length===1?' hand logged':' hands logged');
     const el = document.getElementById('session-net');
-    const decided = hands.filter(h=>h.result==='Won' || h.result==='Lost');
+    const decided = scoped.filter(h=>h.result==='Won' || h.result==='Lost');
     if(!decided.length){
       el.textContent = '—';
       el.className = 'net';
@@ -1130,6 +1213,7 @@
         }
         hands = hands.filter(x=>x.id !== h.id);
         updateHeader();
+        renderNightBar();
         renderHistory();
         renderStats();
       });
@@ -1145,10 +1229,11 @@
     return `<div class="stat-tile"><div class="stat-num ${cls||''}">${num}</div><div class="stat-label">${label}</div></div>`;
   }
   function renderStats(){
-    const total = hands.length;
+    const scoped = handsForStatsSelection();
+    const total = scoped.length;
     const topGrid = document.getElementById('stat-grid-top');
-    const wonCount = hands.filter(h=>h.result==='Won').length;
-    const lostCount = hands.filter(h=>h.result==='Lost').length;
+    const wonCount = scoped.filter(h=>h.result==='Won').length;
+    const lostCount = scoped.filter(h=>h.result==='Lost').length;
     const winPct = total ? Math.round(100*wonCount/total) : 0;
     topGrid.innerHTML =
       statTile(total, 'Hands Logged') +
@@ -1157,8 +1242,8 @@
       statTile(lostCount, 'Lost', 'neg');
 
     const preGrid = document.getElementById('stat-grid-preflop');
-    const vpip = total ? Math.round(100*hands.filter(h=>h.preflop.action!=='Fold').length/total) : 0;
-    const pfr = total ? Math.round(100*hands.filter(h=>h.preflop.action==='Raise').length/total) : 0;
+    const vpip = total ? Math.round(100*scoped.filter(h=>h.preflop.action!=='Fold').length/total) : 0;
+    const pfr = total ? Math.round(100*scoped.filter(h=>h.preflop.action==='Raise').length/total) : 0;
     preGrid.innerHTML =
       statTile(total? vpip+'%':'—', 'VPIP') +
       statTile(total? pfr+'%':'—', 'PFR');
@@ -1168,7 +1253,7 @@
       posEl.innerHTML = '<div class="empty-state" style="padding:20px;">Log hands to see position breakdown.</div>';
     } else {
       const byPos = {};
-      hands.forEach(h=>{ byPos[h.position] = byPos[h.position] || {won:0,count:0}; if(h.result==='Won') byPos[h.position].won++; byPos[h.position].count++; });
+      scoped.forEach(h=>{ byPos[h.position] = byPos[h.position] || {won:0,count:0}; if(h.result==='Won') byPos[h.position].won++; byPos[h.position].count++; });
       posEl.innerHTML = POSITIONS.filter(p=>byPos[p]).map(p=>{
         const v = byPos[p];
         const pct = Math.round(100*v.won/v.count);
@@ -1182,7 +1267,7 @@
     }
 
     const sdGrid = document.getElementById('stat-grid-showdown');
-    const sdHands = hands.filter(h=>h.showdown);
+    const sdHands = scoped.filter(h=>h.showdown);
     const sdWinPct = sdHands.length ? Math.round(100*sdHands.filter(h=>h.result==='Won').length/sdHands.length) : 0;
     sdGrid.innerHTML =
       statTile(sdHands.length, 'Times to Showdown') +
