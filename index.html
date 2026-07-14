@@ -692,8 +692,10 @@
     const btn = document.getElementById('night-toggle-btn');
     if(activeSession){
       const startedStr = new Date(activeSession.started_at).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
-      const count = hands.filter(h=>h.session_id === activeSession.id).length;
-      statusEl.textContent = 'Night in progress · started ' + startedStr + ' · ' + count + (count===1?' hand':' hands');
+      const nightHands = hands.filter(h=>h.session_id === activeSession.id);
+      const decided = nightHands.filter(h=>h.result==='Won' || h.result==='Lost');
+      const winPct = decided.length ? Math.round(100*decided.filter(h=>h.result==='Won').length/decided.length) : null;
+      statusEl.textContent = 'Night in progress · started ' + startedStr + ' · ' + nightHands.length + (nightHands.length===1?' hand':' hands') + (winPct!==null ? ' · ' + winPct + '% won' : '');
       statusEl.className = 'night-status live';
       btn.textContent = 'End Night';
       btn.className = 'night-btn end';
