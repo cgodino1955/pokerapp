@@ -697,9 +697,10 @@
     if(activeSession){
       const startedStr = new Date(activeSession.started_at).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
       const nightHands = hands.filter(h=>h.session_id === activeSession.id);
+      const wonCount = nightHands.filter(h=>h.result==='Won').length;
       const decided = nightHands.filter(h=>h.result==='Won' || h.result==='Lost');
-      const winPct = decided.length ? Math.round(100*decided.filter(h=>h.result==='Won').length/decided.length) : null;
-      statusEl.textContent = 'Night in progress · started ' + startedStr + ' · ' + nightHands.length + (nightHands.length===1?' hand':' hands') + (winPct!==null ? ' · ' + winPct + '% won' : '');
+      const winPct = decided.length ? Math.round(100*wonCount/decided.length) : null;
+      statusEl.textContent = 'Night in progress · started ' + startedStr + ' · ' + nightHands.length + (nightHands.length===1?' hand':' hands') + ' · ' + wonCount + ' won' + (winPct!==null ? ' (' + winPct + '%)' : '');
       statusEl.className = 'night-status live';
       btn.textContent = 'End Night';
       btn.className = 'night-btn end';
