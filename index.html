@@ -918,35 +918,47 @@
     }
     // Bet or Call — read from that street's own amount input. Preflop calls
     // aren't always just the big blind (you might be calling a 3-bet), so
-    // it gets an editable field too, same as the postflop streets.
+    // it gets an editable field too, same as the postflop streets. Save is
+    // blocked before this runs if it's empty, so state.bb is just a
+    // defensive fallback, not the normal path.
     const v = document.getElementById(street+'-call-amount').value;
     return v !== '' ? v : state.bb;
   }
 
-  // What a street's Call/Bet amount should default to: the previous street's
-  // resolved amount (so a call carries forward the last raise size), falling
-  // back to the big blind if nothing was raised yet. Preflop has no prior
-  // street, so it just defaults to the big blind.
-  function defaultCallAmount(street){
-    if(street === 'preflop') return state.bb || '';
-    const prevStreet = {flop:'preflop', turn:'flop', river:'turn'}[street];
-    const prevAction = {preflop:state.preflopAction, flop:state.flopAction, turn:state.turnAction}[prevStreet];
-    return streetAmount(prevStreet, prevAction) || state.bb || '';
+  // Call/Bet amounts are never pre-filled (see buildBBMultipleChips), so
+  // before saving we make sure every street that's actually in play with a
+  // Call or Bet action has had its amount explicitly chosen.
+  function missingCallAmountStreet(){
+    const streets = [
+      ['preflop', state.preflopAction],
+      ['flop', state.flopAction],
+      ['turn', state.turnAction],
+      ['river', state.riverAction],
+    ];
+    for(const [street, action] of streets){
+      if((action === 'Bet' || action === 'Call') && document.getElementById(street+'-call-amount').value === ''){
+        return street;
+      }
+    }
+    return null;
   }
 
   // ---------------- BB-multiple quick-select chips ----------------
   // Shared by both the raise and the call/bet amount inputs: a row of
-  // chips at common big-blind multiples (2x-6x) so you rarely have to
-  // type a number by hand. Clicking one just sets the paired input's value.
-  const BB_MULTIPLES = [2, 3, 4, 5, 6];
-  function buildBBMultipleChips(chipsContainerId, inputId){
+  // chips at common big-blind multiples so you rarely have to type a
+  // number by hand. Nothing is pre-filled — the field starts blank and you
+  // must tap a chip (or type a custom amount) to confirm it, so a hand can
+  // never silently get logged at a default you didn't actually check.
+  const RAISE_MULTIPLES = [2, 3, 4, 5, 6];
+  const CALL_MULTIPLES = [1, 2, 3, 4, 5, 6];
+  function buildBBMultipleChips(chipsContainerId, inputId, multiples){
     const chipsEl = document.getElementById(chipsContainerId);
     const input = document.getElementById(inputId);
     const bb = parseFloat(state.bb);
     chipsEl.innerHTML = '';
     if(!bb) return;
     const current = parseFloat(input.value);
-    BB_MULTIPLES.forEach(m=>{
+    multiples.forEach(m=>{
       const val = bb * m;
       const b = document.createElement('button');
       b.type = 'button';
@@ -960,13 +972,11 @@
   // ---------------- call/bet amount input helper ----------------
   function updateCallAmountInput(street, action){
     const wrap = document.getElementById(street+'-call-wrap');
-    const input = document.getElementById(street+'-call-amount');
     const label = document.getElementById(street+'-call-label');
     if(action === 'Bet' || action === 'Call'){
       wrap.style.display = 'block';
       label.textContent = action === 'Bet' ? 'Bet Amount' : 'Call Amount';
-      if(!input.value){ input.value = defaultCallAmount(street); }
-      buildBBMultipleChips(street+'-call-chips', street+'-call-amount');
+      buildBBMultipleChips(street+'-call-chips', street+'-call-amount', CALL_MULTIPLES);
     } else {
       wrap.style.display = 'none';
     }
@@ -983,7 +993,7 @@
       wrap.style.display = 'block';
       if(state.bb){ input.step = state.bb; }
       if(!input.value && state.bb){ input.value = state.bb * 2; }
-      buildBBMultipleChips(street+'-raise-chips', street+'-raise-amount');
+      buildBBMultipleChips(street+'-raise-chips', street+'-raise-amount', RAISE_MULTIPLES);
     } else {
       wrap.style.display = 'none';
     }
@@ -1119,6 +1129,11 @@
     }
     if(!activeSession){
       alert('Start tonight\'s session before logging a hand — use the "Start Night" button up top.');
+      return;
+    }
+    const missingStreet = missingCallAmountStreet();
+    if(missingStreet){
+      alert('Select a ' + missingStreet + ' call/bet amount before saving.');
       return;
     }
 
