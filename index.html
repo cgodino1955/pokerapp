@@ -79,7 +79,7 @@
 
   .night-bar{
     margin-top:10px;
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    display:flex; flex-direction:column; gap:8px;
     padding:10px 12px;
     background:rgba(201,162,39,0.08);
     border:1px solid var(--line-strong);
@@ -91,6 +91,7 @@
     color:var(--cream-dim);
   }
   .night-status.live{ color:var(--gold); }
+  .night-bar-actions{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .night-btn{
     flex-shrink:0;
     padding:8px 14px;
@@ -104,6 +105,23 @@
     cursor:pointer;
   }
   .night-btn.end{ border-color:var(--loss); color:var(--loss); }
+  .players-stepper{
+    display:flex; align-items:center; gap:8px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--cream-dim);
+  }
+  .stepper-btn{
+    width:26px; height:26px;
+    border-radius:6px;
+    border:1px solid var(--line-strong);
+    background:rgba(0,0,0,0.15);
+    color:var(--cream);
+    font-size:16px;
+    line-height:1;
+    cursor:pointer;
+  }
+  #players-remaining-label{ min-width:60px; text-align:center; }
 
   main{ flex:1; padding:18px 16px 100px; }
 
@@ -420,8 +438,15 @@
       <span id="session-net" class="net">—</span>
     </div>
     <div class="night-bar" id="night-bar">
-      <span class="night-status" id="night-status">No night in progress</span>
-      <button class="night-btn" id="night-toggle-btn" type="button">Start Night</button>
+      <div class="night-status" id="night-status">No night in progress</div>
+      <div class="night-bar-actions">
+        <div class="players-stepper" id="players-stepper" style="display:none;">
+          <button class="stepper-btn" id="players-minus-btn" type="button">−</button>
+          <span id="players-remaining-label">—</span>
+          <button class="stepper-btn" id="players-plus-btn" type="button">+</button>
+        </div>
+        <button class="night-btn" id="night-toggle-btn" type="button">Start Night</button>
+      </div>
     </div>
   </header>
 
@@ -541,6 +566,11 @@
         <div class="chip-row" id="result-chips"></div>
         <label class="field-label">Reached Showdown?</label>
         <div class="chip-row" id="showdown-chips"></div>
+        <div id="opp-hand-wrap" style="display:none;">
+          <label class="field-label">Opponent's Hand (optional)</label>
+          <div class="card-slots" id="opp-hand-slots"></div>
+          <div class="picker" id="opp-hand-picker"></div>
+        </div>
         <label class="field-label">Notes (optional)</label>
         <textarea id="notes-input" placeholder="e.g. 3-bet from CO, opponent had AK"></textarea>
       </div>
@@ -694,6 +724,7 @@
   function renderNightBar(){
     const statusEl = document.getElementById('night-status');
     const btn = document.getElementById('night-toggle-btn');
+    const stepper = document.getElementById('players-stepper');
     if(activeSession){
       const startedStr = new Date(activeSession.started_at).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
       const nightHands = hands.filter(h=>h.session_id === activeSession.id);
@@ -704,11 +735,18 @@
       statusEl.className = 'night-status live';
       btn.textContent = 'End Night';
       btn.className = 'night-btn end';
+      if(activeSession.players_remaining != null){
+        stepper.style.display = 'flex';
+        document.getElementById('players-remaining-label').textContent = activeSession.players_remaining + ' left';
+      } else {
+        stepper.style.display = 'none';
+      }
     } else {
       statusEl.textContent = 'No night in progress';
       statusEl.className = 'night-status';
       btn.textContent = 'Start Night';
       btn.className = 'night-btn';
+      stepper.style.display = 'none';
     }
   }
 
@@ -718,7 +756,18 @@
       const { error } = await supabaseClient.from('sessions').update({ ended_at: Date.now() }).eq('id', activeSession.id);
       if(error){ alert('Could not end night: ' + error.message); return; }
     } else {
-      const { error } = await supabaseClient.from('sessions').insert({ started_at: Date.now() });
+      const playersStr = prompt('How many players are starting tonight? (leave blank to skip)', '');
+      let startingPlayers = null;
+      if(playersStr !== null && playersStr.trim() !== ''){
+        const n = parseInt(playersStr, 10);
+        if(!n || n < 1){ alert('Enter a valid number of players, or leave it blank.'); return; }
+        startingPlayers = n;
+      }
+      const { error } = await supabaseClient.from('sessions').insert({
+        started_at: Date.now(),
+        starting_players: startingPlayers,
+        players_remaining: startingPlayers,
+      });
       if(error){ alert('Could not start night: ' + error.message); return; }
     }
     await loadSessionsData();
@@ -727,6 +776,19 @@
     renderStats();
     updateHeader();
   });
+
+  // A player busting is common enough mid-hand that it needs to be a single
+  // tap, not a form — the stepper just nudges the session's running count.
+  async function adjustPlayersRemaining(delta){
+    if(!activeSession || activeSession.players_remaining == null) return;
+    const next = Math.max(1, activeSession.players_remaining + delta);
+    const { error } = await supabaseClient.from('sessions').update({ players_remaining: next }).eq('id', activeSession.id);
+    if(error){ alert('Could not update player count: ' + error.message); return; }
+    activeSession.players_remaining = next;
+    renderNightBar();
+  }
+  document.getElementById('players-minus-btn').addEventListener('click', ()=>adjustPlayersRemaining(-1));
+  document.getElementById('players-plus-btn').addEventListener('click', ()=>adjustPlayersRemaining(1));
 
   // ---------------- stats session picker ----------------
   function populateStatsSessionSelect(){
@@ -773,6 +835,7 @@
     riverAction: null,
     result: null,
     showdown: null,
+    oppHand: [null, null],
   };
 
   function resetState(){
@@ -788,6 +851,7 @@
       turn:[null], turnAction:null,
       river:[null], riverAction:null,
       result:null, showdown:null,
+      oppHand: [null, null],
     };
     if(keepBlindChoice !== null){
       document.getElementById('sb-input').value = keepSb;
@@ -825,7 +889,7 @@
   // ---------------- card slot + picker builder ----------------
   function getAllUsedCardKeys(excludeArr){
     const all = [];
-    [state.hole, state.flop, state.turn, state.river].forEach(arr=>{
+    [state.hole, state.flop, state.turn, state.river, state.oppHand].forEach(arr=>{
       if(arr === excludeArr) return; // allow re-checking within the same slot group without self-blocking on re-render
       arr.forEach(c=>{ if(c) all.push(c.rank + c.suit); });
     });
@@ -1116,6 +1180,11 @@
 
     buildChipRow('result-chips', ['Won','Lost','Chopped'], ()=>state.result, (v)=>state.result=v);
     buildChipRow('showdown-chips', ['Yes','No'], ()=>state.showdown, (v)=>state.showdown=v);
+
+    document.getElementById('opp-hand-wrap').style.display = state.showdown === 'Yes' ? 'block' : 'none';
+    if(state.showdown === 'Yes'){
+      buildCardUI('opp-hand-slots', 'opp-hand-picker', state.oppHand, ()=>{});
+    }
   }
 
   // ---------------- save ----------------
@@ -1150,6 +1219,8 @@
       river: state.riverAction ? {card: state.river[0], action: state.riverAction, amount: streetAmount('river', state.riverAction)} : null,
       result: state.result,
       showdown: state.showdown === 'Yes',
+      opp_hand: (state.showdown === 'Yes' && state.oppHand[0] && state.oppHand[1]) ? state.oppHand : null,
+      players_remaining: activeSession.players_remaining,
       notes: notes || '',
     };
 
@@ -1220,8 +1291,9 @@
           <div class="hand-net ${resultCls}">${h.result}</div>
         </div>
         <div class="hand-detail">
-          Blinds: ${h.sb||'—'}/${h.bb||'—'} &nbsp;·&nbsp; Showdown: ${h.showdown?'Yes':'No'}<br>
+          Blinds: ${h.sb||'—'}/${h.bb||'—'} &nbsp;·&nbsp; Showdown: ${h.showdown?'Yes':'No'}${h.players_remaining!=null ? ' &nbsp;·&nbsp; Players left: '+h.players_remaining : ''}<br>
           ${streetSummary(h)}
+          ${h.opp_hand ? '<br>Opponent showed: ' + h.opp_hand[0].rank+h.opp_hand[0].suit + ' ' + h.opp_hand[1].rank+h.opp_hand[1].suit : ''}
           ${h.notes ? '<br><em>' + escapeHtml(h.notes) + '</em>' : ''}
           <br><button class="del-btn" data-id="${h.id}">Delete hand</button>
         </div>

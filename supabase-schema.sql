@@ -8,6 +8,8 @@ create table public.sessions (
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   started_at bigint not null,
   ended_at bigint,
+  starting_players integer,
+  players_remaining integer,
   created_at timestamptz not null default now()
 );
 
@@ -43,6 +45,8 @@ create table public.hands (
   river jsonb,
   result text,
   showdown boolean,
+  opp_hand jsonb,
+  players_remaining integer,
   notes text,
   created_at timestamptz not null default now()
 );
