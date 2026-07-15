@@ -562,14 +562,17 @@
 
       <h2 class="section-title">Outcome</h2>
       <div class="card-block">
-        <label class="field-label">Result</label>
-        <div class="chip-row" id="result-chips"></div>
-        <label class="field-label">Reached Showdown?</label>
-        <div class="chip-row" id="showdown-chips"></div>
-        <div id="opp-hand-wrap" style="display:none;">
-          <label class="field-label">Opponent's Hand (optional)</label>
-          <div class="card-slots" id="opp-hand-slots"></div>
-          <div class="picker" id="opp-hand-picker"></div>
+        <div id="folded-outcome-note" class="fold-banner" style="display:none;">Folded — logged as Lost, no showdown.</div>
+        <div id="outcome-fields-wrap">
+          <label class="field-label">Result</label>
+          <div class="chip-row" id="result-chips"></div>
+          <label class="field-label">Reached Showdown?</label>
+          <div class="chip-row" id="showdown-chips"></div>
+          <div id="opp-hand-wrap" style="display:none;">
+            <label class="field-label">Opponent's Hand (optional)</label>
+            <div class="card-slots" id="opp-hand-slots"></div>
+            <div class="picker" id="opp-hand-picker"></div>
+          </div>
         </div>
         <label class="field-label">Notes (optional)</label>
         <textarea id="notes-input" placeholder="e.g. 3-bet from CO, opponent had AK"></textarea>
@@ -835,6 +838,7 @@
     riverAction: null,
     result: null,
     showdown: null,
+    resultAuto: false, // true when result/showdown were auto-set because you folded
     oppHand: [null, null],
   };
 
@@ -850,7 +854,7 @@
       flop:[null,null,null], flopAction:null,
       turn:[null], turnAction:null,
       river:[null], riverAction:null,
-      result:null, showdown:null,
+      result:null, showdown:null, resultAuto:false,
       oppHand: [null, null],
     };
     if(keepBlindChoice !== null){
@@ -1178,7 +1182,26 @@
       banner.style.display='none';
     }
 
-    buildChipRow('result-chips', ['Won','Lost','Chopped'], ()=>state.result, (v)=>state.result=v);
+    // Folding fully determines the outcome — there's no showdown to reach
+    // and nothing left to win, so Result/Showdown are set automatically
+    // instead of asking you to confirm what you already told us.
+    if(foldedAt){
+      state.result = 'Lost';
+      state.showdown = 'No';
+      state.resultAuto = true;
+      document.getElementById('outcome-fields-wrap').style.display = 'none';
+      document.getElementById('folded-outcome-note').style.display = 'block';
+    } else {
+      if(state.resultAuto){
+        state.result = null;
+        state.showdown = null;
+        state.resultAuto = false;
+      }
+      document.getElementById('outcome-fields-wrap').style.display = '';
+      document.getElementById('folded-outcome-note').style.display = 'none';
+    }
+
+    buildChipRow('result-chips', ['Won','Lost','Chopped'], ()=>state.result, (v)=>{ state.result=v; state.resultAuto=false; });
     buildChipRow('showdown-chips', ['Yes','No'], ()=>state.showdown, (v)=>state.showdown=v);
 
     document.getElementById('opp-hand-wrap').style.display = state.showdown === 'Yes' ? 'block' : 'none';
