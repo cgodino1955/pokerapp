@@ -1347,6 +1347,16 @@
   }
 
   // ---------------- stats render ----------------
+  // A hand counts as folded if any street's action was Fold — cheap to
+  // derive from the already-stored per-street actions, no extra field
+  // needed. "Lost" then means lost without folding (showdown or otherwise),
+  // separate from hands you gave up on.
+  function wasFolded(h){
+    return h.preflop.action === 'Fold'
+      || (h.flop && h.flop.action === 'Fold')
+      || (h.turn && h.turn.action === 'Fold')
+      || (h.river && h.river.action === 'Fold');
+  }
   function statTile(num, label, cls){
     return `<div class="stat-tile"><div class="stat-num ${cls||''}">${num}</div><div class="stat-label">${label}</div></div>`;
   }
@@ -1355,12 +1365,14 @@
     const total = scoped.length;
     const topGrid = document.getElementById('stat-grid-top');
     const wonCount = scoped.filter(h=>h.result==='Won').length;
-    const lostCount = scoped.filter(h=>h.result==='Lost').length;
+    const foldedCount = scoped.filter(wasFolded).length;
+    const lostCount = scoped.filter(h=>h.result==='Lost' && !wasFolded(h)).length;
     const winPct = total ? Math.round(100*wonCount/total) : 0;
     topGrid.innerHTML =
       statTile(total, 'Hands Logged') +
       statTile(total ? winPct+'%' : '—', 'Win Rate', winPct>=50?'pos':'neg') +
       statTile(wonCount, 'Won', 'pos') +
+      statTile(foldedCount, 'Folded') +
       statTile(lostCount, 'Lost', 'neg');
 
     const preGrid = document.getElementById('stat-grid-preflop');
