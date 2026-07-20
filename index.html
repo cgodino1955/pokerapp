@@ -105,6 +105,12 @@
     cursor:pointer;
   }
   .night-btn.end{ border-color:var(--loss); color:var(--loss); }
+  .build-tag{
+    margin:6px 0 0;
+    font-family:'JetBrains Mono', monospace;
+    font-size:10px;
+    color:rgba(217,207,184,0.4);
+  }
   .players-stepper{
     display:flex; align-items:center; gap:8px;
     font-family:'JetBrains Mono', monospace;
@@ -426,6 +432,7 @@
   <div class="auth-card">
     <div class="brand">Poker Hand Tracker <span class="suits">♠ ♥ ♦ ♣</span></div>
     <p class="auth-sub" id="auth-status">Setting up your session…</p>
+    <p class="build-tag" id="build-tag-gate"></p>
   </div>
 </div>
 
@@ -437,6 +444,7 @@
       <span id="hand-count">0 hands logged</span>
       <span id="session-net" class="net">—</span>
     </div>
+    <p class="build-tag" id="build-tag-app"></p>
     <div class="night-bar" id="night-bar">
       <div class="night-status" id="night-status">No night in progress</div>
       <div class="night-bar-actions">
@@ -625,6 +633,15 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
+
+  // Bump this string on every deploy — shown in tiny text on the login
+  // screen and in the app header. Since the service worker can leave
+  // devices on a stale cached copy, this is the fast way to tell whether
+  // a given phone has actually picked up the latest version, instead of
+  // guessing from symptoms alone.
+  const BUILD_VERSION = 'build 2026-07-19a';
+  document.getElementById('build-tag-gate').textContent = BUILD_VERSION;
+  document.getElementById('build-tag-app').textContent = BUILD_VERSION;
 
   // ---------------- Supabase config ----------------
   // Public project URL + anon key — safe to expose client-side, access to
