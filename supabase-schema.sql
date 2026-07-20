@@ -8,12 +8,18 @@ create table public.sessions (
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   started_at bigint not null,
   ended_at bigint,
+  label text,
   starting_players integer,
   players_remaining integer,
   created_at timestamptz not null default now()
 );
 
 create index sessions_user_id_started_idx on public.sessions (user_id, started_at desc);
+
+-- At most one open (ended_at is null) session per user — prevents a
+-- double-tap on "Start Night" or two open tabs from silently creating two
+-- "active" nights at once.
+create unique index one_active_session_per_user on public.sessions (user_id) where ended_at is null;
 
 alter table public.sessions enable row level security;
 

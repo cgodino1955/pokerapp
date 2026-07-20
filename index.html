@@ -734,7 +734,8 @@
       const wonCount = nightHands.filter(h=>h.result==='Won').length;
       const decided = nightHands.filter(h=>h.result==='Won' || h.result==='Lost');
       const winPct = decided.length ? Math.round(100*wonCount/decided.length) : null;
-      statusEl.textContent = 'Night in progress · started ' + startedStr + ' · ' + nightHands.length + (nightHands.length===1?' hand':' hands') + ' · ' + wonCount + ' won' + (winPct!==null ? ' (' + winPct + '%)' : '');
+      const prefix = activeSession.label ? activeSession.label + ' — ' : '';
+      statusEl.textContent = prefix + 'Night in progress · started ' + startedStr + ' · ' + nightHands.length + (nightHands.length===1?' hand':' hands') + ' · ' + wonCount + ' won' + (winPct!==null ? ' (' + winPct + '%)' : '');
       statusEl.className = 'night-status live';
       btn.textContent = 'End Night';
       btn.className = 'night-btn end';
@@ -759,6 +760,10 @@
       const { error } = await supabaseClient.from('sessions').update({ ended_at: Date.now() }).eq('id', activeSession.id);
       if(error){ alert('Could not end night: ' + error.message); return; }
     } else {
+      const labelStr = prompt('Name tonight\'s game? (leave blank to skip)', '');
+      if(labelStr === null) return; // cancelled
+      const label = labelStr.trim() || null;
+
       const playersStr = prompt('How many players are starting tonight? (leave blank to skip)', '');
       let startingPlayers = null;
       if(playersStr !== null && playersStr.trim() !== ''){
@@ -768,10 +773,21 @@
       }
       const { error } = await supabaseClient.from('sessions').insert({
         started_at: Date.now(),
+        label,
         starting_players: startingPlayers,
         players_remaining: startingPlayers,
       });
-      if(error){ alert('Could not start night: ' + error.message); return; }
+      if(error){
+        // Unique-violation means a night is already open somewhere (a
+        // double-tap, or another tab) — refresh instead of showing a raw
+        // Postgres error, since the fix is just to see what's actually open.
+        if(error.code === '23505'){
+          alert('A night is already in progress — refreshing to show it.');
+        } else {
+          alert('Could not start night: ' + error.message);
+          return;
+        }
+      }
     }
     await loadSessionsData();
     renderNightBar();
@@ -807,7 +823,8 @@
       const d = new Date(s.started_at);
       const dateStr = d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
       const timeStr = d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
-      opt.textContent = dateStr + ' ' + timeStr + (s.ended_at ? '' : ' (in progress)');
+      const prefix = s.label ? s.label + ' — ' : '';
+      opt.textContent = prefix + dateStr + ' ' + timeStr + (s.ended_at ? '' : ' (in progress)');
       sel.appendChild(opt);
     });
     if(statsSessionId === null){
