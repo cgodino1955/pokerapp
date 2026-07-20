@@ -713,11 +713,16 @@
   }
   async function loadAll(){
     await Promise.all([loadHandsData(), loadSessionsData()]);
+    // Priming this here (not just in resetState) covers reloading mid-night
+    // — the log form should still suggest the right next position, not
+    // reset to blank just because the page refreshed.
+    state.position = suggestedNextPosition();
     renderHistory();
     renderNightBar();
     populateStatsSessionSelect();
     renderStats();
     updateHeader();
+    renderAll();
   }
 
   // ---------------- night (session) controls ----------------
@@ -859,13 +864,27 @@
     oppHand: [null, null],
   };
 
+  // The button moves one seat each hand, so your own position advances
+  // through the same fixed rotation every time (SB -> BB -> UTG -> ... ->
+  // BTN -> SB). POSITIONS is already in that order.
+  function nextPositionAfter(pos){
+    const idx = POSITIONS.indexOf(pos);
+    return idx === -1 ? null : POSITIONS[(idx+1) % POSITIONS.length];
+  }
+  function suggestedNextPosition(){
+    if(!activeSession) return null;
+    const nightHands = hands.filter(h=>h.session_id === activeSession.id);
+    if(!nightHands.length) return null;
+    return nextPositionAfter(nightHands[0].position); // hands are loaded newest-first
+  }
+
   function resetState(){
     // keep blindChoice/sb/bb — same table usually keeps the same stakes hand to hand
     const keepBlindChoice = state.blindChoice;
     const keepSb = state.sb;
     const keepBb = state.bb;
     state = {
-      position: null, blindChoice: keepBlindChoice, sb:keepSb, bb:keepBb,
+      position: suggestedNextPosition(), blindChoice: keepBlindChoice, sb:keepSb, bb:keepBb,
       hole:[null,null],
       preflopAction:null,
       flop:[null,null,null], flopAction:null,
