@@ -646,7 +646,7 @@
   // devices on a stale cached copy, this is the fast way to tell whether
   // a given phone has actually picked up the latest version, instead of
   // guessing from symptoms alone.
-  const BUILD_VERSION = 'build 2026-07-20a';
+  const BUILD_VERSION = 'build 2026-07-20b';
   document.getElementById('build-tag-gate').textContent = BUILD_VERSION;
   document.getElementById('build-tag-app').textContent = BUILD_VERSION;
   document.getElementById('today-date').textContent = new Date().toLocaleDateString(undefined, {weekday:'long', month:'long', day:'numeric', year:'numeric'});
@@ -674,7 +674,25 @@
     {sym:'♦', code:'d', red:true},
     {sym:'♣', code:'c', red:false},
   ];
+  // Full 9-max order — also used as the canonical position ordering for
+  // Stats, which can aggregate across nights of different sizes.
   const POSITIONS = ['SB','BB','UTG','UTG+1','MP','MP+1','HJ','CO','BTN'];
+  // Smaller tables use a proper subset in the same relative (seating) order,
+  // so the auto-advance rotation still just walks the list correctly.
+  const POSITION_SETS = {
+    2: ['SB','BB'],
+    3: ['SB','BB','BTN'],
+    4: ['SB','BB','CO','BTN'],
+    5: ['SB','BB','UTG','CO','BTN'],
+    6: ['SB','BB','UTG','HJ','CO','BTN'],
+    7: ['SB','BB','UTG','MP','HJ','CO','BTN'],
+    8: ['SB','BB','UTG','UTG+1','MP','HJ','CO','BTN'],
+    9: POSITIONS,
+  };
+  function activePositions(){
+    const n = activeSession && activeSession.starting_players;
+    return (n && POSITION_SETS[n]) ? POSITION_SETS[n] : POSITIONS;
+  }
   const ACTIONS_PRE = ['Fold','Call','Raise'];
   const ACTIONS_POST = ['Check','Bet','Call','Raise','Fold'];
   const BLIND_PRESETS = ['10/20','25/50','50/100','100/200','200/400','500/1000','1000/2000','Custom'];
@@ -824,6 +842,7 @@
     populateStatsSessionSelect();
     renderStats();
     updateHeader();
+    renderAll(); // position options depend on activeSession.starting_players
   });
 
   // A player busting is common enough mid-hand that it needs to be a single
@@ -891,10 +910,11 @@
 
   // The button moves one seat each hand, so your own position advances
   // through the same fixed rotation every time (SB -> BB -> UTG -> ... ->
-  // BTN -> SB). POSITIONS is already in that order.
+  // BTN -> SB), sized to however many players this night started with.
   function nextPositionAfter(pos){
-    const idx = POSITIONS.indexOf(pos);
-    return idx === -1 ? null : POSITIONS[(idx+1) % POSITIONS.length];
+    const positions = activePositions();
+    const idx = positions.indexOf(pos);
+    return idx === -1 ? null : positions[(idx+1) % positions.length];
   }
   function suggestedNextPosition(){
     if(!activeSession) return null;
@@ -1149,8 +1169,8 @@
 
   // ---------------- main render ----------------
   function renderAll(){
-    // position
-    buildChipRow('position-chips', POSITIONS, ()=>state.position, (v)=>state.position=v);
+    // position — sized to this night's starting player count, if given
+    buildChipRow('position-chips', activePositions(), ()=>state.position, (v)=>state.position=v);
 
     // blinds
     buildChipRow('blinds-chips', BLIND_PRESETS, ()=>state.blindChoice, (v)=>{
