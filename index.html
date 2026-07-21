@@ -67,6 +67,12 @@
     display:flex; align-items:baseline; gap:8px;
   }
   .brand .suits{ color:var(--gold); font-size:15px; letter-spacing:2px; }
+  .today-date{
+    margin-top:4px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--gold);
+  }
   .session-line{
     margin-top:6px;
     font-family:'JetBrains Mono', monospace;
@@ -127,7 +133,7 @@
     line-height:1;
     cursor:pointer;
   }
-  #players-remaining-label{ min-width:60px; text-align:center; }
+  #players-remaining-label{ min-width:92px; text-align:center; }
 
   main{ flex:1; padding:18px 16px 100px; }
 
@@ -440,6 +446,7 @@
 
   <header>
     <div class="brand">Poker Hand Tracker <span class="suits">♠ ♥ ♦ ♣</span></div>
+    <div class="today-date" id="today-date"></div>
     <div class="session-line">
       <span id="hand-count">0 hands logged</span>
       <span id="session-net" class="net">—</span>
@@ -639,9 +646,10 @@
   // devices on a stale cached copy, this is the fast way to tell whether
   // a given phone has actually picked up the latest version, instead of
   // guessing from symptoms alone.
-  const BUILD_VERSION = 'build 2026-07-19a';
+  const BUILD_VERSION = 'build 2026-07-20a';
   document.getElementById('build-tag-gate').textContent = BUILD_VERSION;
   document.getElementById('build-tag-app').textContent = BUILD_VERSION;
+  document.getElementById('today-date').textContent = new Date().toLocaleDateString(undefined, {weekday:'long', month:'long', day:'numeric', year:'numeric'});
 
   // ---------------- Supabase config ----------------
   // Public project URL + anon key — safe to expose client-side, access to
@@ -763,7 +771,7 @@
       btn.className = 'night-btn end';
       if(activeSession.players_remaining != null){
         stepper.style.display = 'flex';
-        document.getElementById('players-remaining-label').textContent = activeSession.players_remaining + ' left';
+        document.getElementById('players-remaining-label').textContent = activeSession.players_remaining + ' players left';
       } else {
         stepper.style.display = 'none';
       }
@@ -804,7 +812,7 @@
         // double-tap, or another tab) — refresh instead of showing a raw
         // Postgres error, since the fix is just to see what's actually open.
         if(error.code === '23505'){
-          alert('A night is already in progress — refreshing to show it.');
+          alert('A night is already in progress. End it before starting a new one — refreshing to show it.');
         } else {
           alert('Could not start night: ' + error.message);
           return;
